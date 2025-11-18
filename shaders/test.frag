@@ -142,23 +142,85 @@ Material fetchMaterial(int idx) {
 // intersectSphere: ray-sphere intersection in object space
 // Sphere is centered at origin with radius = 0.5
 float intersectSphere(vec3 ro, vec3 rd) {
-    // TODO: implement ray-sphere intersection
-    return -1.0;
+    // DONE: implement ray-sphere intersection
+    float A = dot(rd, rd);
+    float B = 2.0 * dot(ro, rd);
+    float C = dot(ro, ro) - pow(0.5, 2.0);
+
+    float discriminant = pow(B, 2.0) - (4.0 * A * C);
+    if (discriminant < 0.0) return -1.0;
+    
+    float t1 = ((-1.0 * B) + sqrt(discriminant)) / (2.0 * A);
+    float t2 = ((-1.0 * B) - sqrt(discriminant)) / (2.0 * A);
+    
+    if (t1 > EPSILON && t2 > EPSILON) return min(t1, t2);
+    else if (t2 < EPSILON) return t1;
+    else if (t1 < EPSILON) return t2;
+    else return -1.0;
 }
 
 // ----------------------------------------------
 // normalSphere: compute normal at intersection point in object space
 vec3 normalSphere(vec3 hitPos) {
-    // TODO: implement normal computation for sphere
-    return vec3(1.0);
+    // DONE: implement normal computation for sphere
+    return normalize(hitPos);
 }
 
 // ----------------------------------------------
 // intersectCube: ray-cube intersection in object space
 // Cube is centered at origin with side length = 1
 float intersectCube(vec3 ro, vec3 rd) {
+    float t = -1.0;
     // TODO: implement ray-cube intersection
-    return -1.0;
+    
+    
+    // const ts = [];
+    
+    // for (let i = 0; i < 3; i++) {
+    //     if (rayDirection[i] === 0) continue;
+    //     const t1 = (HALF - rayOrigin[i]) / rayDirection[i];
+    //     const t2 = (-HALF - rayOrigin[i]) / rayDirection[i];
+        
+    //     const p1 = vec3.fromValues(
+    //         rayOrigin[0] + rayDirection[0] * t1,
+    //         rayOrigin[1] + rayDirection[1] * t1,
+    //         rayOrigin[2] + rayDirection[2] * t1
+    //     );
+    //     const p2 = vec3.fromValues(
+    //         rayOrigin[0] + rayDirection[0] * t2,
+    //         rayOrigin[1] + rayDirection[1] * t2,
+    //         rayOrigin[2] + rayDirection[2] * t2
+    //     );
+    //     ts.push({ p: p1, t: t1 });
+    //     ts.push({ p: p2, t: t2 });
+    // }
+
+    // let validPoints = [];
+
+    // // check that point is within bounds
+    // for (const entry of ts) {
+    //     const [x, y, z] = entry.p;
+    //     const xInt = parseFloat(x);
+    //     const yInt = parseFloat(y);
+    //     const zInt = parseFloat(z);
+
+    //     if (
+    //         xInt >= -HALF && xInt <= HALF &&
+    //         yInt >= -HALF && yInt <= HALF &&
+    //         zInt >= -HALF && zInt <= HALF
+    //     ) {
+
+    //         // console.log("Hit!");
+    //         validPoints.push(entry.t);
+    //     }
+    // }
+
+    // const hits = validPoints.filter(t => t > 0);
+    // if (hits.length === 0) return -1;
+    // return Math.min(...hits);
+    
+    // return -1.0;
+    return t;
 }
 
 // ----------------------------------------------
@@ -224,11 +286,47 @@ vec2 getTexCoordCone(vec3 hit, vec2 repeatUV) {
 
 // ----------------------------------------------
 // getWorldRayDir: reconstruct world-space ray direction using uCamWorldMatrix
+// uCamWorldMatrix = inverse model view matrix
 vec3 getWorldRayDir() {
-    vec2 uv  = gl_FragCoord.xy / uResolution; 
     // TODO: compute ray direction in world space
-    vec3 dir = vec3(0.0);
-    return dir;
+    // return vec3(0.0,0.0,-1.0);
+    // step 1: calculate S from uv
+    vec2 uv  = gl_FragCoord.xy / uResolution; 
+    vec4 S = vec4(vec3(uv, -1.0), 1.0);
+    
+    // step 2: S from 
+    vec4 Sworld_4 = S * uCamWorldMatrix;
+
+    // step 3: subtract S world point from camera eye and normalize
+    vec3 rd = Sworld_4.xyz - uCameraPos;
+    return normalize(rd);
+    
+    
+    // step 1: get coords
+    // const w = this.canvas.width, h = this.canvas.height;
+    // const A = (2 * x / w) - 1;
+    // const B = 1 - (2 * y / h);
+    // const S = vec3.fromValues(A, B, -1);
+
+    // step 2: S from cam to world using mat
+    // // Transform S from camera space to world
+    // const TinvRinv = this.camera.getInverseModelViewMatrix();
+    // const Sinv = this.camera.getInverseScaleMatrix();
+    // const Minv = mat4.multiply(mat4.create(), TinvRinv, Sinv); 
+    // // const Minv = mat4.multiply(mat4.create(), Sinv, TinvRinv); 
+        
+    // // Multiply scale and model then invert
+    // let Sworld4 = vec4.fromValues(...S, 1);
+
+    // vec4.transformMat4(Sworld4, Sworld4, Minv);
+    // const Sworld3 = vec3.fromValues(Sworld4[0], Sworld4[1], Sworld4[2]);
+    
+    // step 3: subtract S world point from camera eye and normalize
+    // // // Subtrack S's world point from camera eye point and normalize
+    // const rd = vec3.create();
+    // vec3.subtract(rd, Sworld3, this.camera.getEyePoint());
+    // vec3.normalize(rd, rd);
+    // return rd;
 }
 
 // to help test occlusion (shadow)
@@ -241,6 +339,12 @@ bool isInShadow(vec3 p, vec3 lightDir, float maxDist) {
 // bounce = recursion level (0 for primary rays)
 vec3 traceRay(vec3 rayOrigin, vec3 rayDir) {
     // TODO: implement ray tracing logic
+    float t = intersectSphere(rayOrigin, rayDir);
+
+    if (t > 0.0) {
+        return vec3(1.0);
+    }
+    
     return vec3(0.0);
 }
 
