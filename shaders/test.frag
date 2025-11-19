@@ -42,6 +42,7 @@ uniform int uMaxDepth; // maximum recursion depth for reflections
 
 // constants
 const float EPSILON = 1e-3;
+const float HALF = 0.5;
 const float PI = 3.141592653589793;
 
 // TODO: This should be your output color, instead of gl_FragColor
@@ -170,64 +171,52 @@ vec3 normalSphere(vec3 hitPos) {
 // intersectCube: ray-cube intersection in object space
 // Cube is centered at origin with side length = 1
 float intersectCube(vec3 ro, vec3 rd) {
-    float t = -1.0;
-    // TODO: implement ray-cube intersection
+    // DONE: implement ray-cube intersection
+    vec4 ts[6];
+    int tsIndex = 0;
     
+    for (int i = 0; i < 3; i++) {
+        if (rd[i] == 0.0) continue;
+        float t1 = (HALF - ro[i]) / rd[i];
+        float t2 = (-HALF - ro[i]) / rd[i];
+
+        vec3 p1 = ro + rd * t1;
+        vec3 p2 = ro + rd * t2;
+
+        ts[tsIndex++] = vec4(p1, t1);
+        ts[tsIndex++] = vec4(p2, t2);
+    }
+
+    float minT = -1.0;
     
-    // const ts = [];
-    
-    // for (let i = 0; i < 3; i++) {
-    //     if (rayDirection[i] === 0) continue;
-    //     const t1 = (HALF - rayOrigin[i]) / rayDirection[i];
-    //     const t2 = (-HALF - rayOrigin[i]) / rayDirection[i];
+    for (int j = 0; j < tsIndex; j++) {
+        vec3 p = ts[j].xyz;
+        float tVal = ts[j].w;
         
-    //     const p1 = vec3.fromValues(
-    //         rayOrigin[0] + rayDirection[0] * t1,
-    //         rayOrigin[1] + rayDirection[1] * t1,
-    //         rayOrigin[2] + rayDirection[2] * t1
-    //     );
-    //     const p2 = vec3.fromValues(
-    //         rayOrigin[0] + rayDirection[0] * t2,
-    //         rayOrigin[1] + rayDirection[1] * t2,
-    //         rayOrigin[2] + rayDirection[2] * t2
-    //     );
-    //     ts.push({ p: p1, t: t1 });
-    //     ts.push({ p: p2, t: t2 });
-    // }
+        if (p.x >= -HALF && p.x <= HALF &&
+            p.y >= -HALF && p.y <= HALF &&
+            p.z >= -HALF && p.z <= HALF &&
+            tVal > 0.0) {
+            
+            if (minT < 0.0 || tVal < minT) {
+                minT = tVal;
+            }
+        }
+    }
 
-    // let validPoints = [];
-
-    // // check that point is within bounds
-    // for (const entry of ts) {
-    //     const [x, y, z] = entry.p;
-    //     const xInt = parseFloat(x);
-    //     const yInt = parseFloat(y);
-    //     const zInt = parseFloat(z);
-
-    //     if (
-    //         xInt >= -HALF && xInt <= HALF &&
-    //         yInt >= -HALF && yInt <= HALF &&
-    //         zInt >= -HALF && zInt <= HALF
-    //     ) {
-
-    //         // console.log("Hit!");
-    //         validPoints.push(entry.t);
-    //     }
-    // }
-
-    // const hits = validPoints.filter(t => t > 0);
-    // if (hits.length === 0) return -1;
-    // return Math.min(...hits);
-    
-    // return -1.0;
-    return t;
+    return minT;
 }
 
 // ----------------------------------------------
 // normalCube: compute normal at intersection point in object space
 vec3 normalCube(vec3 hitPos) {
-    // TODO: implement normal computation for cube
-    return vec3(1.0);
+    // DONE: implement normal computation for cube
+    if (abs(hitPos.x - HALF) < EPSILON) return vec3(1.0, 0.0, 0.0);
+    if (abs(hitPos.x + HALF) < EPSILON) return vec3(-1.0, 0.0, 0.0);
+    if (abs(hitPos.y - HALF) < EPSILON) return vec3(0.0, 1.0, 0.0);
+    if (abs(hitPos.y + HALF) < EPSILON) return vec3(0.0, -1.0, 0.0);
+    if (abs(hitPos.z - HALF) < EPSILON) return vec3(0.0, 0.0, 1.0);
+    if (abs(hitPos.z + HALF) < EPSILON) return vec3(0.0, 0.0, -1.0);
 }
 
 // ----------------------------------------------
