@@ -146,9 +146,9 @@ float intersectSphere(vec3 ro, vec3 rd) {
     // DONE: implement ray-sphere intersection
     float A = dot(rd, rd);
     float B = 2.0 * dot(ro, rd);
-    float C = dot(ro, ro) - pow(0.5, 2.0);
+    float C = dot(ro, ro) - (0.5 * 0.5);
 
-    float discriminant = pow(B, 2.0) - (4.0 * A * C);
+    float discriminant = (B * B) - (4.0 * A * C);
     if (discriminant < 0.0) return -1.0;
     
     float t1 = ((-1.0 * B) + sqrt(discriminant)) / (2.0 * A);
@@ -222,34 +222,147 @@ vec3 normalCube(vec3 hitPos) {
 // ----------------------------------------------
 // intersectCylinder: ray-cylinder intersection in object space
 float intersectCylinder(vec3 ro, vec3 rd) {
-    float t = -1.0;
-
-    // TODO: implement ray-cylinder intersection
+    // DONE: implement ray-cylinder intersection
     // Cylinder is centered at origin, radius = 0.5, height = 1
 
-    return t; // return closest intersection distance, or -1.0 if no hit
+    float minT = -1.0;
+    vec4 ts[6];
+    int tsIndex = 0;
+
+    // X and Z coordinates
+    float A = rd[0] * rd[0] + rd[2] * rd[2];
+    float B = 2.0 * (rd[0] * ro[0] + rd[2] * ro[2]);
+    float C = (ro[0] * ro[0]) + (ro[2] * ro[2]) - (0.5 * 0.5);
+
+    float discriminant = (B * B) - (4.0 * A * C);
+    if (discriminant < 0.0) return -1.0;
+
+    float t1 = ((-1.0 * B) + sqrt(discriminant)) / (2.0 * A);
+    float t2 = ((-1.0 * B) - sqrt(discriminant)) / (2.0 * A);
+
+    vec3 p1 = ro + rd * t1;
+    vec3 p2 = ro + rd * t2;
+
+    if (t1 > 0.0) ts[tsIndex++] = vec4(p1, t1);
+    if (t2 > 0.0) ts[tsIndex++] = vec4(p2, t2);
+
+    // Y-coordinate
+    if (rd[1] != 0.0) {
+        float t3 = (-1.0 * HALF - ro[1]) / rd[1];
+        vec3 p3 = ro + rd * t3;
+        if (t3 > 0.0) ts[tsIndex++] = vec4(p3, t3);
+    }
+
+    for (int i = 0; i < tsIndex; i++) {
+        vec3 p = ts[i].xyz;
+        float tVal = ts[i].w; // index 3 (0-indexed)
+
+        if ((p.x*p.x + p.z*p.z) <= (HALF*HALF)) {
+            // Top cap (y ≈ HALF)
+            if ((p.y + HALF) < EPSILON) {
+                if (minT < 0.0 || tVal < minT) {
+                    minT = tVal;
+                }
+            }
+            // Within cylinder height
+            else if ((p.y + HALF) > EPSILON && (p.y - HALF) < EPSILON) {
+                if (minT < 0.0 || tVal < minT) {
+                    minT = tVal;
+                }
+            }
+        }
+    }
+
+    return minT; // return closest intersection distance, or -1.0 if no hit
 }
 
 // ----------------------------------------------
 // normalCylinder: compute normal at intersection point in object space
 vec3 normalCylinder(vec3 hitPos) {
-    // TODO: implement normal computation for cylinder
+    // DONE: implement normal computation for cylinder
     // Cylinder is centered at origin, radius = 0.5, height = 1
-    return vec3(1.0);
+
+    // If is a cap value, points up or down
+    if (abs(hitPos[1] - HALF) < EPSILON) return vec3(0.0, 1.0, 0.0);
+    if (abs(hitPos[1] + HALF) < EPSILON) return vec3(0.0, -1.0, 0.0);
+
+    // Otherwise, points out (y val of normal is 0)
+    vec3 outside = vec3(hitPos[0], 0.0, hitPos[2]);
+    return normalize(outside);
 }
 
 // ----------------------------------------------
 // intersectCone: ray-cone intersection in object space
 float intersectCone(vec3 ro, vec3 rd) {
-    // TODO: implement ray-cone intersection
-    return -1.0;
+    // DONE: implement ray-cone intersection
+    float minT = -1.0;
+    vec4 ts[6];
+    int tsIndex = 1;
+
+    float r = 0.5;
+    float h = 1.0;
+    float yapex = 0.5;
+    
+    float r2h2 = (r * r) / (h * h);
+    float A = rd[0] * rd[0] 
+            + rd[2] * rd[2] 
+            - (rd[1] * rd[1] * r2h2);
+    float B = 2.0 * ((rd[0] * ro[0]) 
+                    + (rd[2] * ro[2]) 
+                    + (rd[1] * (yapex - ro[1])) * r2h2);;
+    float C = (ro[0] * ro[0]) + (ro[2] * ro[2]) - (pow(yapex - ro[1], 2.0) * r2h2);
+
+    float discriminant = (B * B) - (4.0 * A * C);
+    if (discriminant < 0.0) return -1.0;
+
+    float t1 = ((-1.0 * B) + sqrt(discriminant)) / (2.0 * A);
+    float t2 = ((-1.0 * B) - sqrt(discriminant)) / (2.0 * A);
+
+    vec3 p1 = ro + rd * t1;
+    vec3 p2 = ro + rd * t2;
+
+    if (t1 > 0.0) ts[tsIndex++] = vec4(p1, t1);
+    if (t2 > 0.0) ts[tsIndex++] = vec4(p2, t2);
+
+    // Y-coordinate
+    if (rd[1] != 0.0) {
+        float t3 = (-1.0 * HALF - ro[1]) / rd[1];
+        vec3 p3 = ro + rd * t3;
+        if (t3 > 0.0) ts[tsIndex++] = vec4(p3, t3);
+    }
+
+    for (int i = 0; i < tsIndex; i++) {
+        vec3 p = ts[i].xyz;
+        float tVal = ts[i].w; // index 3 (0-indexed)
+
+        if ((p.x*p.x + p.z*p.z) <= (HALF*HALF)) {
+            // Top cap (y ≈ HALF)
+            if ((p.y + HALF) < EPSILON) {
+                if (minT < 0.0 || tVal < minT) {
+                    minT = tVal;
+                }
+            }
+            // Within cylinder height
+            else if ((p.y + HALF) > EPSILON && (p.y - HALF) < EPSILON) {
+                if (minT < 0.0 || tVal < minT) {
+                    minT = tVal;
+                }
+            }
+        }
+    }
+
+    return minT;
 }
 
 // ----------------------------------------------
 // normalCone: compute normal at intersection point in object space
 vec3 normalCone(vec3 hitPos) {
-    // TODO: implement normal computation for cone
-    return vec3(1.0);
+    // DONE: implement normal computation for cone
+    if (abs(hitPos[1] - HALF) < EPSILON) return vec3(0.0, 1.0, 0.0);
+    if (abs(hitPos[1] + HALF) < EPSILON) return vec3(0.0, -1.0, 0.0);
+
+    // else, outside point (y val of normal is 0)
+    return normalize(vec3(hitPos[0], 0.0, hitPos[2]));
 }
 
 vec2 getTexCoordSphere(vec3 hit, vec2 repeatUV) {
@@ -277,8 +390,10 @@ vec2 getTexCoordCone(vec3 hit, vec2 repeatUV) {
 // getWorldRayDir: reconstruct world-space ray direction using uCamWorldMatrix
 // uCamWorldMatrix = inverse model view matrix
 vec3 getWorldRayDir() {
-    // TODO: compute ray direction in world space
+    // TODO: DOUBLE CHECK!!
+    // DONE: compute ray direction in world space 
     // return vec3(0.0,0.0,-1.0);
+
     // step 1: calculate S from uv
     vec2 uv  = gl_FragCoord.xy / uResolution; 
     vec4 S = vec4(vec3(uv, -1.0), 1.0);
