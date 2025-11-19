@@ -45,6 +45,12 @@ const float EPSILON = 1e-3;
 const float HALF = 0.5;
 const float PI = 3.141592653589793;
 
+// shapes
+const int SHAPE_CUBE     = 0;
+const int SHAPE_CYLINDER = 1;
+const int SHAPE_CONE     = 2;
+const int SHAPE_SPHERE   = 3;
+
 // TODO: This should be your output color, instead of gl_FragColor
 out vec4 outColor;
 
@@ -390,47 +396,18 @@ vec2 getTexCoordCone(vec3 hit, vec2 repeatUV) {
 // getWorldRayDir: reconstruct world-space ray direction using uCamWorldMatrix
 // uCamWorldMatrix = inverse model view matrix
 vec3 getWorldRayDir() {
-    // TODO: DOUBLE CHECK!!
-    // DONE: compute ray direction in world space 
-    // return vec3(0.0,0.0,-1.0);
 
     // step 1: calculate S from uv
-    vec2 uv  = gl_FragCoord.xy / uResolution; 
-    vec4 S = vec4(vec3(uv, -1.0), 1.0);
+    float u = (2. * gl_FragCoord.x / uResolution.x) - 1.0;
+    float v = 1.0 - (2. * gl_FragCoord.y / uResolution.y );
+    vec4 S = vec4(u, v,-1.0, 1.0);
     
-    // step 2: S from 
-    vec4 Sworld_4 = S * uCamWorldMatrix;
+    // step 2: S into world space
+    vec4 Sworld = uCamWorldMatrix * S;
 
     // step 3: subtract S world point from camera eye and normalize
-    vec3 rd = Sworld_4.xyz - uCameraPos;
+    vec3 rd = Sworld.xyz - uCameraPos;
     return normalize(rd);
-    
-    
-    // step 1: get coords
-    // const w = this.canvas.width, h = this.canvas.height;
-    // const A = (2 * x / w) - 1;
-    // const B = 1 - (2 * y / h);
-    // const S = vec3.fromValues(A, B, -1);
-
-    // step 2: S from cam to world using mat
-    // // Transform S from camera space to world
-    // const TinvRinv = this.camera.getInverseModelViewMatrix();
-    // const Sinv = this.camera.getInverseScaleMatrix();
-    // const Minv = mat4.multiply(mat4.create(), TinvRinv, Sinv); 
-    // // const Minv = mat4.multiply(mat4.create(), Sinv, TinvRinv); 
-        
-    // // Multiply scale and model then invert
-    // let Sworld4 = vec4.fromValues(...S, 1);
-
-    // vec4.transformMat4(Sworld4, Sworld4, Minv);
-    // const Sworld3 = vec3.fromValues(Sworld4[0], Sworld4[1], Sworld4[2]);
-    
-    // step 3: subtract S world point from camera eye and normalize
-    // // // Subtrack S's world point from camera eye point and normalize
-    // const rd = vec3.create();
-    // vec3.subtract(rd, Sworld3, this.camera.getEyePoint());
-    // vec3.normalize(rd, rd);
-    // return rd;
 }
 
 // to help test occlusion (shadow)
@@ -443,9 +420,26 @@ bool isInShadow(vec3 p, vec3 lightDir, float maxDist) {
 // bounce = recursion level (0 for primary rays)
 vec3 traceRay(vec3 rayOrigin, vec3 rayDir) {
     // TODO: implement ray tracing logic
-    float t = intersectSphere(rayOrigin, rayDir);
-
-    if (t > 0.0) {
+    float t;
+    // for (int i = 0; i < uObjectCount; i++) {
+    for (int i = 0; i < 1; i++) {
+        // uSceneBuffer[i][0];
+        int objType = SHAPE_CONE;
+        switch (objType) {
+            case SHAPE_CUBE:     t = intersectCube(rayOrigin, rayDir);
+                        break;
+            case SHAPE_CYLINDER: t = intersectCylinder(rayOrigin, rayDir);
+                        break;
+            case SHAPE_CONE:     t = intersectCone(rayOrigin, rayDir);
+                        break;
+            case SHAPE_SPHERE:   t = intersectSphere(rayOrigin, rayDir);
+                        break;
+            default:             t = intersectCube(rayOrigin, rayDir);
+                        break;
+        }
+    }
+    // t = t + 1.0;
+    if (t >= 0.0) {
         return vec3(1.0);
     }
     
@@ -463,4 +457,11 @@ void main() {
     // process and get final color 
     vec3 color = traceRay(rayOrigin, rayDir);
     outColor = vec4(color, 1.0);
+
+    // TODO: delete this
+    // vec2 uv  = gl_FragCoord.xy / uResolution; 
+    // if ( (uv.x + uv.y) < 0.5) {
+    //     outColor = vec4(0.5, 1., 1., 0.5);
+    // }
+    
 }
