@@ -298,15 +298,15 @@ float intersectCone(vec3 ro, vec3 rd) {
     // DONE: implement ray-cone intersection
     float minT = -1.0;
     vec4 ts[6];
-    int tsIndex = 1;
+    int tsIndex = 0;
 
     float r = 0.5;
     float h = 1.0;
     float yapex = 0.5;
     
     float r2h2 = (r * r) / (h * h);
-    float A = rd[0] * rd[0] 
-            + rd[2] * rd[2] 
+    float A = (rd[0] * rd[0])
+            + (rd[2] * rd[2])
             - (rd[1] * rd[1] * r2h2);
     float B = 2.0 * ((rd[0] * ro[0]) 
                     + (rd[2] * ro[2]) 
@@ -336,27 +336,19 @@ float intersectCone(vec3 ro, vec3 rd) {
         vec3 p = ts[i].xyz;
         float tVal = ts[i].w; // index 3 (0-indexed)
         if ((p.x*p.x + p.z*p.z) <= (HALF*HALF + EPSILON)) {
-            if ((p.y + EPSILON) < HALF && (p.y - EPSILON) > -HALF) {
-                if (minT < 0.0 || tVal < minT) {
-                    minT = tVal;
-                }
-            }
-
             // Bottom cap (y = -0.5)
             if (p.y > (- HALF - EPSILON) && p.y < (- HALF + EPSILON)) {
                 if (minT < 0.0 || tVal < minT) {
                     minT = tVal;
                 }
             }
+
             // inbetweens
-            // else 
-            // if (p.y > (-HALF - EPSILON) && p.y < (HALF + EPSILON)) {
-            // if (p.y > (-HALF + EPSILON) && p.y < (HALF + EPSILON)) {
-            // // else if ((p.y + HALF) > EPSILON && (p.y - HALF) < EPSILON) {
-            //     if (minT < 0.0 || tVal < minT) {
-            //         minT = tVal;
-            //     }
-            // }
+            else if (p.y > (-HALF - EPSILON) && p.y < (HALF + EPSILON)) {
+                if (minT < 0.0 || tVal < minT) {
+                    minT = tVal;
+                }
+            }
         }
     }
 
