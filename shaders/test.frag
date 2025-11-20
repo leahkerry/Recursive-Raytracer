@@ -199,9 +199,10 @@ float intersectCube(vec3 ro, vec3 rd) {
         vec3 p = ts[j].xyz;
         float tVal = ts[j].w;
         
-        if (p.x >= -HALF && p.x <= HALF &&
-            p.y >= -HALF && p.y <= HALF &&
-            p.z >= -HALF && p.z <= HALF &&
+        float Half_ep = HALF + EPSILON;
+        if (p.x >= -(Half_ep) && p.x <= Half_ep &&
+            p.y >= -Half_ep && p.y <= Half_ep &&
+            p.z >= -Half_ep && p.z <= Half_ep &&
             tVal > 0.0) {
             
             if (minT < 0.0 || tVal < minT) {
@@ -263,15 +264,9 @@ float intersectCylinder(vec3 ro, vec3 rd) {
         vec3 p = ts[i].xyz;
         float tVal = ts[i].w; // index 3 (0-indexed)
 
-        if ((p.x*p.x + p.z*p.z) <= (HALF*HALF)) {
+        if ((p.x*p.x + p.z*p.z) <= ((HALF*HALF) + EPSILON)) {
             // Top cap (y ≈ HALF)
-            if ((p.y + HALF) < EPSILON) {
-                if (minT < 0.0 || tVal < minT) {
-                    minT = tVal;
-                }
-            }
-            // Within cylinder height
-            else if ((p.y + HALF) > EPSILON && (p.y - HALF) < EPSILON) {
+            if ((p.y + EPSILON) < HALF && (p.y - EPSILON) > -HALF) {
                 if (minT < 0.0 || tVal < minT) {
                     minT = tVal;
                 }
@@ -330,7 +325,7 @@ float intersectCone(vec3 ro, vec3 rd) {
     if (t1 > 0.0) ts[tsIndex++] = vec4(p1, t1);
     if (t2 > 0.0) ts[tsIndex++] = vec4(p2, t2);
 
-    // Y-coordinate
+    // the base
     if (rd[1] != 0.0) {
         float t3 = (-1.0 * HALF - ro[1]) / rd[1];
         vec3 p3 = ro + rd * t3;
@@ -340,20 +335,28 @@ float intersectCone(vec3 ro, vec3 rd) {
     for (int i = 0; i < tsIndex; i++) {
         vec3 p = ts[i].xyz;
         float tVal = ts[i].w; // index 3 (0-indexed)
+        if ((p.x*p.x + p.z*p.z) <= (HALF*HALF + EPSILON)) {
+            if ((p.y + EPSILON) < HALF && (p.y - EPSILON) > -HALF) {
+                if (minT < 0.0 || tVal < minT) {
+                    minT = tVal;
+                }
+            }
 
-        if ((p.x*p.x + p.z*p.z) <= (HALF*HALF)) {
-            // Top cap (y ≈ HALF)
-            if ((p.y + HALF) < EPSILON) {
+            // Bottom cap (y = -0.5)
+            if (p.y > (- HALF - EPSILON) && p.y < (- HALF + EPSILON)) {
                 if (minT < 0.0 || tVal < minT) {
                     minT = tVal;
                 }
             }
-            // Within cylinder height
-            else if ((p.y + HALF) > EPSILON && (p.y - HALF) < EPSILON) {
-                if (minT < 0.0 || tVal < minT) {
-                    minT = tVal;
-                }
-            }
+            // inbetweens
+            // else 
+            // if (p.y > (-HALF - EPSILON) && p.y < (HALF + EPSILON)) {
+            // if (p.y > (-HALF + EPSILON) && p.y < (HALF + EPSILON)) {
+            // // else if ((p.y + HALF) > EPSILON && (p.y - HALF) < EPSILON) {
+            //     if (minT < 0.0 || tVal < minT) {
+            //         minT = tVal;
+            //     }
+            // }
         }
     }
 
@@ -398,9 +401,12 @@ vec2 getTexCoordCone(vec3 hit, vec2 repeatUV) {
 vec3 getWorldRayDir() {
 
     // step 1: calculate S from uv
-    float u = (2. * gl_FragCoord.x / uResolution.x) - 1.0;
-    float v = 1.0 - (2. * gl_FragCoord.y / uResolution.y );
-    vec4 S = vec4(u, v,-1.0, 1.0);
+    float u = (2.0 * gl_FragCoord.x / uResolution.x) - 1.0;
+    float v = (2.0 * gl_FragCoord.y / uResolution.y) - 1.0;
+    vec4 S = vec4(u, v, -1.0, 1.0);
+    
+    // vec2 uv  = gl_FragCoord.xy / uResolution;
+    // vec4 S = vec4(uv, -1.0, 1.0);
     
     // step 2: S into world space
     vec4 Sworld = uCamWorldMatrix * S;
@@ -424,7 +430,7 @@ vec3 traceRay(vec3 rayOrigin, vec3 rayDir) {
     // for (int i = 0; i < uObjectCount; i++) {
     for (int i = 0; i < 1; i++) {
         // uSceneBuffer[i][0];
-        int objType = SHAPE_CONE;
+        int objType = int(fetchFloat(0, i));
         switch (objType) {
             case SHAPE_CUBE:     t = intersectCube(rayOrigin, rayDir);
                         break;
