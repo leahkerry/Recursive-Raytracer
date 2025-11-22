@@ -342,7 +342,6 @@ float intersectCone(vec3 ro, vec3 rd) {
                     minT = tVal;
                 }
             }
-
             // inbetweens
             else if (p.y > (-HALF - EPSILON) && p.y < (HALF + EPSILON)) {
                 if (minT < 0.0 || tVal < minT) {
@@ -397,9 +396,6 @@ vec3 getWorldRayDir() {
     float v = (2.0 * gl_FragCoord.y / uResolution.y) - 1.0;
     vec4 S = vec4(u, v, -1.0, 1.0);
     
-    // vec2 uv  = gl_FragCoord.xy / uResolution;
-    // vec4 S = vec4(uv, -1.0, 1.0);
-    
     // step 2: S into world space
     vec4 Sworld = uCamWorldMatrix * S;
 
@@ -415,35 +411,126 @@ bool isInShadow(vec3 p, vec3 lightDir, float maxDist) {
 }
 
 
+vec4 computeRecursiveLight(Material mat, vec3 pEye, vec3 pWorld, vec3 normal) {
+    // go to uMaxDepth
+    vec3 ambientColor = vec3(mat.ambientColor.r, mat.ambientColor.g, mat.ambientColor.b);
+    vec3 diffuseColor = vec3(mat.diffuseColor.r, mat.diffuseColor.g, mat.diffuseColor.b);
+    vec3 specularColor = vec3(mat.specularColor.r, mat.specularColor.g, mat.specularColor.b);
+    
+    vec4 color = vec4(ambientColor, uGlobalKa);
+
+    for (int i = 0; i < uNumLights; i++){
+        vec3 lightDir = normalize(uLightPos[i] - pWorld);
+        float NL = dot(normal, lightDir);
+        vec3 lightColor = vec3(uLightColor[i]);
+
+        // Step 6: Add diffuse
+        color += vec4(lightColor * diffuseColor * NL, uGlobalKd * diffuseColor);
+
+        // Step 7: Add specular
+        vec3 viewAngle = normalize(vec3(pEye - pWorld));
+        vec3 reflectedRay = normalize((normal * 2.0 * dot(normal, lightDir)) - lightDir);
+        color += vec4(pow(abs(dot(viewAngle, reflectedRay)), mat.shininess) * specularColor, 0.0);
+
+        for (int j = 0; j < 4; j++) {
+            color[j] = max(0.0, min(color[j], 1.0));
+        }
+    }
+
+    color *= 255.0;
+    return color;
+}
+
+float getIntersect(vec3 ro, vec3 rd, int objType) {
+    float t = -1.0;
+    switch (objType) {
+        case SHAPE_CUBE:     
+            t = intersectCube(ro, rd);
+            break;
+        case SHAPE_CYLINDER: 
+            t = intersectCylinder(ro, rd);
+            break;
+        case SHAPE_CONE:     
+            t = intersectCone(ro, rd);
+            break;
+        case SHAPE_SPHERE:   
+            t = intersectSphere(ro, rd);
+            break;
+        default:             
+            break;
+    }
+
+    return t;
+}
+
+// TODO: Fix parameter type
+vec3 getNormal(vec3 hitPosObj, int objType) {
+    switch (objType) {
+        case SHAPE_CUBE: {
+            return normalCube(hitPosObj);
+        }
+        case SHAPE_SPHERE: {
+            return normalSphere(hitPosObj);
+        }
+        case SHAPE_CYLINDER: {
+            return normalCylinder(hitPosObj);
+        }
+        case SHAPE_CONE: {
+            return normalCone(hitPosObj);
+        }
+        default:
+            break;
+    }
+    return vec3(0.0, 0.0, 0.0);
+}
+
 // bounce = recursion level (0 for primary rays)
 vec3 traceRay(vec3 rayOrigin, vec3 rayDir) {
     // TODO: implement ray tracing logic
-    float t;
-    // for (int i = 0; i < uObjectCount; i++) {
-    for (int i = 0; i < 1; i++) {
+    float prevT = 1e10;
+    int closestIdx = -1;
+
+    for (int i = 0; i < uObjectCount; i++) {
         // uSceneBuffer[i][0];
         int objType = int(fetchFloat(0, i));
-        switch (objType) {
-            case SHAPE_CUBE:     t = intersectCube(rayOrigin, rayDir);
-                        break;
-            case SHAPE_CYLINDER: t = intersectCylinder(rayOrigin, rayDir);
-                        break;
-            case SHAPE_CONE:     t = intersectCone(rayOrigin, rayDir);
-                        break;
-            case SHAPE_SPHERE:   t = intersectSphere(rayOrigin, rayDir);
-                        break;
-            default:             t = intersectCube(rayOrigin, rayDir);
-                        break;
+        float t = getIntersect(rayOrigin, rayDir, objType); 
+
+        if (t > EPSILON && t <= prevT) {
+            closestIdx = i;
+            prevT = t;
         }
     }
-    // t = t + 1.0;
-    if (t >= 0.0) {
-        return vec3(1.0);
-    }
-    
-    return vec3(0.0);
-}
 
+    // Step 2: Get point on surface
+    vec3 pEye = (uCamWorldMatrix * vec4(uCameraPos, 1.0)).xyz;
+    vec3 dir = (uCamWorldMatrix * vec4(rayDir, 0.0)).xyz;
+    vec3 P = vec4(pEye + (dir * prevT), 1.0).xyz;
+
+    mat4 worldMatrix = inverse(uCamWorldMatrix);
+    vec3 pWorld = (worldMatrix * vec4(P, 1.0)).xyz;
+
+    // Step 3: Get normal in object coords
+    int objType = int(fetchFloat(0, closestIdx));
+    mat4 objMatrix = inverse(fetchWorldMatrix(closestIdx));
+    vec3 pObj = (objMatrix * vec4(pWorld, 1.0)).xyz;
+    vec3 normal = getNormal(pObj, objType);
+
+    // Step 4: Transform normal from object to world
+    mat4 worldMatrixInvT = transpose(uCamWorldMatrix);
+    vec3 normalWorld = normalize((worldMatrixInvT * vec4(normal, 0.0)).xyz);
+
+    // Step 5: Solve recursive lighting equation
+    Material mat = fetchMaterial(closestIdx);
+    vec4 intensity = computeRecursiveLight(mat, pEye, pWorld, normalWorld);
+    return intensity.xyz;
+
+    // 
+    // if (t >= 0.0) {
+    //     return vec3(1.0);
+    // }
+    
+    // return vec3(0.0);
+}
 
 // ----------------------------------------------
 // main: iterate over all objects, test intersection, and shade
