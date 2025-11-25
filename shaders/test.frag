@@ -404,48 +404,6 @@ vec3 getWorldRayDir() {
     return normalize(rd);
 }
 
-// to help test occlusion (shadow)
-bool isInShadow(vec3 p, vec3 lightDir, float maxDist) {
-    // TODO: implement shadow ray intersection test
-    return false; 
-}
-
-
-vec4 computeRecursiveLight(Material mat, vec3 pEye, vec3 pWorld, vec3 normal) {
-    // go to uMaxDepth
-    vec3 ambientColor  = mat.ambientColor.rgb; 
-    vec3 diffuseColor  = mat.diffuseColor.rgb;
-    vec3 specularColor = mat.specularColor.rgb;
-    
-    vec4 color = vec4(ambientColor * uGlobalKa, 1.0);
-
-    for (int i = 0; i < uNumLights; i++){
-        vec3 lightDir = normalize(uLightPos[i] - pWorld);
-        // vec3 lightDir = normalize(pWorld - uLightPos[i]);
-        float NL = dot(normal, lightDir);
-        vec3 lightColor = uLightColor[i];
-
-        // Step 6: Add diffuse
-        if (NL > 0.0) {
-            color += vec4(lightColor * diffuseColor * uGlobalKd* NL, 0.0);
-        }
-
-        // Step 7: Add specular
-        vec3 viewAngle = normalize(vec3(pEye - pWorld));
-        vec3 reflectedRay = normalize((normal * 2.0 * dot(normal, lightDir)) - lightDir);
-        color += vec4(pow(abs(dot(viewAngle, reflectedRay)), mat.shininess) * specularColor, 0.0);
-
-
-    }
-    // Step 8: bound into range 0-1
-    for (int j = 0; j < 4; j++) {
-        color[j] = max(0.0, min(color[j], 1.0));
-    }
-    
-
-    return color;
-}
-
 float getIntersect(vec3 ro, vec3 rd, int objType) {
     float t = -1.0;
     switch (objType) {
@@ -467,6 +425,95 @@ float getIntersect(vec3 ro, vec3 rd, int objType) {
 
     return t;
 }
+
+
+// to help test occlusion (shadow)
+bool isInShadow(vec3 p, vec3 lightDir, float maxDist) {
+    // TODO: implement shadow ray intersection test
+
+    // step 1: create vector from p to lightdir
+    // step 2: loop through all objects. find shortest distance
+    // step 3: if shortest distance is less than maxdistance, return true
+
+    vec3 rayOrigin = p;
+    vec3 rayDir = lightDir;
+
+    for (int i = 0; i < uObjectCount; i++) {
+
+        int objType = int(fetchFloat(0, i));
+
+        // NOTE: convert ro and rd into object space
+        mat4 objMatrix = inverse(fetchWorldMatrix(i));
+        vec3 objRayOrigin = vec3(objMatrix * vec4(rayOrigin, 1.0));
+        vec3 objRayDir = vec3(objMatrix * vec4(rayDir, 0.0));
+
+        float t = getIntersect(objRayOrigin, objRayDir, objType); 
+        
+        // if (t > EPSILON && t <= prevT) {
+        if (t > (2.0 * EPSILON) && t <= (maxDist - EPSILON)) {
+            return true;
+        }
+    }
+    return false; 
+}
+
+
+vec3 computeRecursiveLight(Material mat, vec3 pEye, vec3 pWorld, vec3 normal) {
+    // go to uMaxDepth
+
+    vec3 ambientColor  = mat.ambientColor.rgb; 
+    vec3 diffuseColor  = mat.diffuseColor.rgb;
+    vec3 specularColor = mat.specularColor.rgb;
+    
+    vec3 color = vec3(0.0);
+    vec3 currcolor = vec3(0.0);
+
+    // for (int r = 0; r < uMaxDepth; r++) {
+    
+    for (int r = 0; r < 1; r++) {
+        // Ambient term (a) 
+        currcolor = vec3(ambientColor * uGlobalKa); 
+
+        for (int i = 0; i < uNumLights; i++){
+            
+            // TODO: if ray to light source is blocked, pass (SHADOW)
+            vec3 lightDir = normalize(uLightPos[i] - pWorld);
+            float pointToLightDist = abs(length(uLightPos[i] - pWorld));
+            if (isInShadow(pWorld, lightDir, pointToLightDist)) {
+                continue;
+            }
+            float NL = dot(normal, lightDir);
+            vec3 lightColor = uLightColor[i];
+
+            // Diffuse term (d)
+            if (NL > 0.0) {
+                currcolor += vec3(lightColor * diffuseColor * uGlobalKd* NL);
+            }
+
+            // Specular term (s)
+            vec3 viewAngle = normalize(vec3(pEye - pWorld));
+            vec3 reflectedRay = normalize((normal * 2.0 * dot(normal, lightDir)) - lightDir);
+            currcolor += vec3(pow(abs(dot(viewAngle, reflectedRay)), mat.shininess) * specularColor);
+
+            // Reflective term (s, r) recursive
+        }
+        // go to next spot
+        // color += (currcolor * uGlobalKs);
+        color += currcolor * pow(uGlobalKs, float(r));
+        // pEye = pWorld;
+        // pWorld = pWorld + vec3(1.0);
+        // normal = normalize(pEye - pWorld);
+
+    }
+    // Step 8: bound into range 0-1
+    for (int j = 0; j < 4; j++) {
+        color[j] = max(0.0, min(color[j], 1.0));
+    }
+    
+
+    return color;
+}
+
 
 // TODO: Fix parameter type
 vec3 getNormal(vec3 hitPosObj, int objType) {
@@ -491,7 +538,7 @@ vec3 getNormal(vec3 hitPosObj, int objType) {
 
 // bounce = recursion level (0 for primary rays)
 vec3 traceRay(vec3 rayOrigin, vec3 rayDir) {
-    // TODO: implement ray tracing logic
+
     float prevT = 1e10;
     int closestIdx = -1;
 
@@ -506,38 +553,38 @@ vec3 traceRay(vec3 rayOrigin, vec3 rayDir) {
 
         float t = getIntersect(objRayOrigin, objRayDir, objType); 
         
+        // if t is closer than the previous object and in front of the camera
         if (t > EPSILON && t <= prevT) {
             closestIdx = i;
             prevT = t;
         }
     }
 
+    // if is too far to render, return 0
     if (prevT >= (1e10 - EPSILON)) {
         return vec3(0.0);
     }
+
     // Step 2: Get point on surface
-    // vec3 pEye = (uCamWorldMatrix * vec4(rayOrigin, 1.0)).xyz;
     vec3 pEye = rayOrigin;
-    // vec3 dir = (uCamWorldMatrix * vec4(rayDir, 0.0)).xyz;
     vec3 dir = rayDir;
-    vec3 pWorld = vec4(pEye + (dir * prevT), 1.0).xyz;
+    vec3 pWorld = pEye + (dir * prevT);
 
     // Step 3: Get normal in object coords
     int objType = int(fetchFloat(0, closestIdx));
-    mat4 objMatrix = inverse(fetchWorldMatrix(closestIdx));
     mat4 objToWorldMatrix = fetchWorldMatrix(closestIdx);
-    vec3 pObj = (objMatrix * vec4(pWorld, 1.0)).xyz;
+    mat4 worldToObjMatrix = inverse(objToWorldMatrix);
+    
+    vec3 pObj = (worldToObjMatrix * vec4(pWorld, 1.0)).xyz;
     vec3 normal = getNormal(pObj, objType);
 
     // Step 4: Transform normal from object to world
-    // mat4 worldMatrixInvT = transpose(uCamWorldMatrix);
-    // vec3 normalWorld = normalize((worldToCamMatrix * vec4(normal, 0.0)).xyz);
     vec3 normalWorld = normalize((objToWorldMatrix * vec4(normal, 0.0)).xyz);
 
     // Step 5: Solve recursive lighting equation
     Material mat = fetchMaterial(closestIdx);
-    vec4 intensity = computeRecursiveLight(mat, pEye, pWorld, normalWorld);
-    return intensity.xyz;
+    vec3 intensity = computeRecursiveLight(mat, pEye, pWorld, normalWorld);
+    return intensity;
 }
 
 // ----------------------------------------------
