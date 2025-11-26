@@ -54,6 +54,10 @@ const int SHAPE_SPHERE   = 3;
 // TODO: This should be your output color, instead of gl_FragColor
 out vec4 outColor;
 
+
+// NOTE: function declarations
+vec3 traceRay(vec3 rayOrigin, vec3 rayDir);
+
 /*********** Helper Functions **********/
 
 // ----------------------------------------------
@@ -461,16 +465,17 @@ bool isInShadow(vec3 p, vec3 lightDir, float maxDist) {
 vec3 computeRecursiveLight(Material mat, vec3 pEye, vec3 pWorld, vec3 normal) {
     // go to uMaxDepth
 
-    vec3 ambientColor  = mat.ambientColor.rgb; 
-    vec3 diffuseColor  = mat.diffuseColor.rgb;
-    vec3 specularColor = mat.specularColor.rgb;
-    
+    vec3 ambientColor    = mat.ambientColor.rgb; 
+    vec3 diffuseColor    = mat.diffuseColor.rgb;
+    vec3 specularColor   = mat.specularColor.rgb;
+    vec3 reflectiveColor = mat.reflectiveColor.rgb;
+
     vec3 color = vec3(0.0);
     vec3 currcolor = vec3(0.0);
 
-    // for (int r = 0; r < uMaxDepth; r++) {
+    for (int r = 0; r < uMaxDepth; r++) {
     
-    for (int r = 0; r < 1; r++) {
+    // for (int r = 0; r < 1; r++) {
         // Ambient term (a) 
         currcolor = vec3(ambientColor * uGlobalKa); 
 
@@ -479,9 +484,9 @@ vec3 computeRecursiveLight(Material mat, vec3 pEye, vec3 pWorld, vec3 normal) {
             // TODO: if ray to light source is blocked, pass (SHADOW)
             vec3 lightDir = normalize(uLightPos[i] - pWorld);
             float pointToLightDist = abs(length(uLightPos[i] - pWorld));
-            if (isInShadow(pWorld, lightDir, pointToLightDist)) {
-                continue;
-            }
+
+            if (isInShadow(pWorld, lightDir, pointToLightDist)) continue;
+        
             float NL = dot(normal, lightDir);
             vec3 lightColor = uLightColor[i];
 
@@ -496,13 +501,15 @@ vec3 computeRecursiveLight(Material mat, vec3 pEye, vec3 pWorld, vec3 normal) {
             currcolor += vec3(pow(abs(dot(viewAngle, reflectedRay)), mat.shininess) * specularColor);
 
             // Reflective term (s, r) recursive
+
         }
         // go to next spot
         // color += (currcolor * uGlobalKs);
-        color += currcolor * pow(uGlobalKs, float(r));
-        // pEye = pWorld;
-        // pWorld = pWorld + vec3(1.0);
-        // normal = normalize(pEye - pWorld);
+        color += currcolor * reflectiveColor * pow(uGlobalKs, float(r));
+        pEye = pWorld; // eye point becomes world point
+        // float closestObjIdx = intersectObj(pEye, normal);
+        // pWorld = // world point becomes closest object along normal (get object)
+        // normal = // get normal of object in pWorld
 
     }
     // Step 8: bound into range 0-1
