@@ -383,8 +383,23 @@ vec3 normalCone(vec3 hitPos) {
 }
 
 vec2 getTexCoordSphere(vec3 hit, vec2 repeatUV) {
-    // TODO: implement spherical mapping
-    return vec2(0.0);
+    // DONE: implement spherical mapping
+    // TODO: get repeat coord w division
+    float Px, Py, Pz = (hit.x, hit.y, hit.z);
+    // float y = hit.y;
+    float theta = atan(Pz, -Px);
+    float u = 0.0;
+
+    if (theta < 0.0) {
+        u = -theta / (2.0 * PI);
+    } else {
+        u = 1.0 - (theta / (2.0 * PI));
+    }
+    float radius = length(hit);
+    // float radius = 4.0;
+    float v = -asin(1.0 * Py / radius) / PI + 0.5;
+    
+    return vec2(u, v);
 }
 
 vec2 getTexCoordCube(vec3 hit, vec3 dominantFace, vec2 repeatUV) {
@@ -495,7 +510,7 @@ vec3 computeRecursiveLight(Material mat, vec3 pEye, vec3 pWorld, vec3 normal) {
         vec3 lightDir = normalize(uLightPos[i] - pWorld);
         float pointToLightDist = abs(length(uLightPos[i] - pWorld));
 
-        // TODO: uncomment shadow 
+        // NOTE: comment out shadow if things r weird
         if (isInShadow(pWorld, lightDir, pointToLightDist)) continue;
     
         float NL = dot(normal, lightDir);
@@ -534,7 +549,7 @@ vec3 computeRecursiveLight(Material mat, vec3 pEye, vec3 pWorld, vec3 normal) {
 }
 
 
-// TODO: Fix parameter type
+// NOTE: Fix parameter type?
 vec3 getNormal(vec3 hitPosObj, int objType) {
     switch (objType) {
         case SHAPE_CUBE: {
@@ -608,11 +623,22 @@ vec3 traceRay(vec3 rayOrigin, vec3 rayDir) {
 
         // Step 5: Solve recursive lighting equation
         Material mat = fetchMaterial(closestIdx);
-        // vec3 intensity = vec3(1.0);
-        // here? compute it with loop. lessening intensity each time. no but then you would have to recompute the stuff.? 
         vec3 reflectiveColor = mat.reflectiveColor.rgb;
         vec3 currintensity = computeRecursiveLight(mat, pEye, pWorld, normalWorld);
+        
+        // TODO: texture mapping
+        // - Blend it with the currintensity rather than just add it
+        // - Get right texture idx (might have to use a glsl function)
+        // - Implement for each shape, adjust accordingly
+        if (mat.useTexture == 1.0) {
+            vec2 objTexCoord = getTexCoordSphere(pObj, vec2(1.0));
+            float texIdx = mat.textureIndex;
+            vec4 texColorWorld = texture(uTextures[0], objTexCoord);
+            currintensity += vec3(texColorWorld);
+        }
+
         if (recdepth == 1) {
+            
             intensity = intensity + currintensity;
         } else {
             // intensity += reflectiveColor * (pow(uGlobalKs, float(recdepth)) * currintensity);
