@@ -233,7 +233,6 @@ vec3 normalCube(vec3 hitPos) {
 // ----------------------------------------------
 // intersectCylinder: ray-cylinder intersection in object space
 float intersectCylinder(vec3 ro, vec3 rd) {
-    // DONE: implement ray-cylinder intersection
     // Cylinder is centered at origin, radius = 0.5, height = 1
 
     float minT = -1.0;
@@ -246,31 +245,39 @@ float intersectCylinder(vec3 ro, vec3 rd) {
     float C = (ro[0] * ro[0]) + (ro[2] * ro[2]) - (0.5 * 0.5);
 
     float discriminant = (B * B) - (4.0 * A * C);
-    if (discriminant < 0.0) return -1.0;
 
-    float t1 = ((-1.0 * B) + sqrt(discriminant)) / (2.0 * A);
-    float t2 = ((-1.0 * B) - sqrt(discriminant)) / (2.0 * A);
+    // Side face
+    if (discriminant >= 0.0) {
+        float t1 = ((-1.0 * B) + sqrt(discriminant)) / (2.0 * A);
+        float t2 = ((-1.0 * B) - sqrt(discriminant)) / (2.0 * A);
 
-    vec3 p1 = ro + rd * t1;
-    vec3 p2 = ro + rd * t2;
+        // Find the two intersection points
+        vec3 p1 = ro + rd * t1;
+        vec3 p2 = ro + rd * t2;
 
-    if (t1 > 0.0) ts[tsIndex++] = vec4(p1, t1);
-    if (t2 > 0.0) ts[tsIndex++] = vec4(p2, t2);
-
-    // Y-coordinate
-    if (rd[1] != 0.0) {
-        float t3 = (-1.0 * HALF - ro[1]) / rd[1];
-        vec3 p3 = ro + rd * t3;
-        if (t3 > 0.0) ts[tsIndex++] = vec4(p3, t3);
+        if (t1 > 0.0) ts[tsIndex++] = vec4(p1, t1);
+        if (t2 > 0.0) ts[tsIndex++] = vec4(p2, t2);
     }
 
+    // Top and bottom faces
+    if (rd[1] != 0.0) {
+        float t3 = (HALF - ro[1]) / rd[1];
+        float t4 = (-1.0 * HALF - ro[1]) / rd[1];
+        vec3 p3 = ro + rd * t3;
+        vec3 p4 = ro + rd * t4;
+        if (t3 > 0.0) ts[tsIndex++] = vec4(p3, t3);
+        if (t4 > 0.0) ts[tsIndex++] = vec4(p4, t4);
+    }
+
+    // Find closest intersection 
     for (int i = 0; i < tsIndex; i++) {
         vec3 p = ts[i].xyz;
         float tVal = ts[i].w; // index 3 (0-indexed)
 
+        // if within circle limits
         if ((p.x*p.x + p.z*p.z) <= ((HALF*HALF) + EPSILON)) {
-            // Top cap (y ≈ HALF)
-            if ((p.y + EPSILON) < HALF && (p.y - EPSILON) > -HALF) {
+            // If within height limit
+            if (p.y <= (HALF + EPSILON) && p.y >= -(HALF + EPSILON)) {
                 if (minT < 0.0 || tVal < minT) {
                     minT = tVal;
                 }
@@ -288,8 +295,8 @@ vec3 normalCylinder(vec3 hitPos) {
     // Cylinder is centered at origin, radius = 0.5, height = 1
 
     // If is a cap value, points up or down
-    if (abs(hitPos[1] - HALF) <= EPSILON) return vec3(0.0, 1.0, 0.0);
-    if (abs(hitPos[1] + HALF) <= EPSILON) return vec3(0.0, -1.0, 0.0);
+    if (abs(hitPos[1] - HALF) <= (2. * EPSILON)) return vec3(0.0, 1.0, 0.0);
+    if (abs(hitPos[1] + HALF) <= (2. * EPSILON)) return vec3(0.0, -1.0, 0.0);
 
     // Otherwise, points out (y val of normal is 0)
     vec3 outside = vec3(hitPos[0], 0.0, hitPos[2]);
@@ -464,58 +471,56 @@ bool isInShadow(vec3 p, vec3 lightDir, float maxDist) {
 
 vec3 computeRecursiveLight(Material mat, vec3 pEye, vec3 pWorld, vec3 normal) {
     // go to uMaxDepth
-
+    // TODO: delete
     vec3 ambientColor    = mat.ambientColor.rgb; 
     vec3 diffuseColor    = mat.diffuseColor.rgb;
     vec3 specularColor   = mat.specularColor.rgb;
     vec3 reflectiveColor = mat.reflectiveColor.rgb;
 
     vec3 color = vec3(0.0);
-    vec3 currcolor = vec3(0.0);
+    // vec3 color = vec3(0.0);
 
-    for (int r = 0; r < uMaxDepth; r++) {
-    
-    // for (int r = 0; r < 1; r++) {
-        // Ambient term (a) 
-        currcolor = vec3(ambientColor * uGlobalKa); 
+    // Ambient term (a) 
+    color = vec3(ambientColor * uGlobalKa); 
 
-        for (int i = 0; i < uNumLights; i++){
-            
-            // TODO: if ray to light source is blocked, pass (SHADOW)
-            vec3 lightDir = normalize(uLightPos[i] - pWorld);
-            float pointToLightDist = abs(length(uLightPos[i] - pWorld));
-
-            if (isInShadow(pWorld, lightDir, pointToLightDist)) continue;
+    for (int i = 0; i < uNumLights; i++){
         
-            float NL = dot(normal, lightDir);
-            vec3 lightColor = uLightColor[i];
+        vec3 lightDir = normalize(uLightPos[i] - pWorld);
+        float pointToLightDist = abs(length(uLightPos[i] - pWorld));
 
-            // Diffuse term (d)
-            if (NL > 0.0) {
-                currcolor += vec3(lightColor * diffuseColor * uGlobalKd* NL);
-            }
+        // TODO: uncomment shadow 
+        // if (isInShadow(pWorld, lightDir, pointToLightDist)) continue;
+    
+        float NL = dot(normal, lightDir);
+        vec3 lightColor = uLightColor[i];
 
-            // Specular term (s)
-            vec3 viewAngle = normalize(vec3(pEye - pWorld));
-            vec3 reflectedRay = normalize((normal * 2.0 * dot(normal, lightDir)) - lightDir);
-            currcolor += vec3(pow(abs(dot(viewAngle, reflectedRay)), mat.shininess) * specularColor);
-
-            // Reflective term (s, r) recursive
-
+        // Diffuse term (d)
+        if (NL > 0.0) {
+            color += vec3(lightColor * diffuseColor * uGlobalKd* NL);
         }
+
+        // Specular term (s)
+        vec3 viewAngle = normalize(vec3(pEye - pWorld));
+        vec3 reflectedRay = normalize((normal * 2.0 * dot(normal, lightDir)) - lightDir);
+        color += vec3(pow(abs(dot(viewAngle, reflectedRay)), mat.shininess) * specularColor);
+
+        // Reflective term (s, r) recursive
+
+    
         // go to next spot
         // color += (currcolor * uGlobalKs);
-        color += currcolor * reflectiveColor * pow(uGlobalKs, float(r));
-        pEye = pWorld; // eye point becomes world point
+        // color += currcolor * pow(uGlobalKs, float(0.0));
+        // pEye = pWorld; // eye point becomes world point
         // float closestObjIdx = intersectObj(pEye, normal);
         // pWorld = // world point becomes closest object along normal (get object)
         // normal = // get normal of object in pWorld
-
+        // Step 8: bound into range 0-1
+        
     }
-    // Step 8: bound into range 0-1
     for (int j = 0; j < 4; j++) {
         color[j] = max(0.0, min(color[j], 1.0));
     }
+    
     
 
     return color;
@@ -545,52 +550,68 @@ vec3 getNormal(vec3 hitPosObj, int objType) {
 
 // bounce = recursion level (0 for primary rays)
 vec3 traceRay(vec3 rayOrigin, vec3 rayDir) {
+    int recdepth = 0;
+    float prevT;
+    int closestIdx;
+    vec3 intensity = vec3(0.0);
 
-    float prevT = 1e10;
-    int closestIdx = -1;
-
-    for (int i = 0; i < uObjectCount; i++) {
-
-        int objType = int(fetchFloat(0, i));
-
-        // NOTE: convert ro and rd into object space
-        mat4 objMatrix = inverse(fetchWorldMatrix(i));
-        vec3 objRayOrigin = vec3(objMatrix * vec4(rayOrigin, 1.0));
-        vec3 objRayDir = vec3(objMatrix * vec4(rayDir, 0.0));
-
-        float t = getIntersect(objRayOrigin, objRayDir, objType); 
+    do {
+        prevT = 1e10;
+        closestIdx = -1;
         
-        // if t is closer than the previous object and in front of the camera
-        if (t > EPSILON && t <= prevT) {
-            closestIdx = i;
-            prevT = t;
+        for (int i = 0; i < uObjectCount; i++) {
+
+            int objType = int(fetchFloat(0, i));
+
+            // NOTE: convert ro and rd into object space
+            mat4 objMatrix = inverse(fetchWorldMatrix(i));
+            vec3 objRayOrigin = vec3(objMatrix * vec4(rayOrigin, 1.0));
+            vec3 objRayDir = vec3(objMatrix * vec4(rayDir, 0.0));
+
+            float t = getIntersect(objRayOrigin, objRayDir, objType); 
+            
+            // if t is closer than the previous object and in front of the camera
+            if (t > EPSILON && t <= prevT) {
+                closestIdx = i;
+                prevT = t;
+            }
         }
-    }
 
-    // if is too far to render, return 0
-    if (prevT >= (1e10 - EPSILON)) {
-        return vec3(0.0);
-    }
+        // if is too far to render, return 0
+        if (prevT >= (1e10 - EPSILON)) {
+            return vec3(0.0);
+        }
 
-    // Step 2: Get point on surface
-    vec3 pEye = rayOrigin;
-    vec3 dir = rayDir;
-    vec3 pWorld = pEye + (dir * prevT);
+        // Step 2: Get point on surface
+        vec3 pEye = rayOrigin;
+        vec3 dir = rayDir;
+        vec3 pWorld = pEye + (dir * prevT);
 
-    // Step 3: Get normal in object coords
-    int objType = int(fetchFloat(0, closestIdx));
-    mat4 objToWorldMatrix = fetchWorldMatrix(closestIdx);
-    mat4 worldToObjMatrix = inverse(objToWorldMatrix);
-    
-    vec3 pObj = (worldToObjMatrix * vec4(pWorld, 1.0)).xyz;
-    vec3 normal = getNormal(pObj, objType);
+        // Step 3: Get normal in object coords
+        int objType = int(fetchFloat(0, closestIdx));
+        mat4 objToWorldMatrix = fetchWorldMatrix(closestIdx);
+        mat4 worldToObjMatrix = inverse(objToWorldMatrix);
+        
+        vec3 pObj = (worldToObjMatrix * vec4(pWorld, 1.0)).xyz;
+        vec3 normal = getNormal(pObj, objType);
 
-    // Step 4: Transform normal from object to world
-    vec3 normalWorld = normalize((objToWorldMatrix * vec4(normal, 0.0)).xyz);
+        // Step 4: Transform normal from object to world
+        vec3 normalWorld = normalize((objToWorldMatrix * vec4(normal, 0.0)).xyz);
 
-    // Step 5: Solve recursive lighting equation
-    Material mat = fetchMaterial(closestIdx);
-    vec3 intensity = computeRecursiveLight(mat, pEye, pWorld, normalWorld);
+        // Step 5: Solve recursive lighting equation
+        Material mat = fetchMaterial(closestIdx);
+        // vec3 intensity = vec3(1.0);
+        // here? compute it with loop. lessening intensity each time. no but then you would have to recompute the stuff.? 
+        vec3 currintensity = computeRecursiveLight(mat, pEye, pWorld, normalWorld);
+        intensity += (pow(uGlobalKs, float(recdepth)) * currintensity);
+        
+        recdepth += 1;
+        rayOrigin = pWorld;
+        rayDir = normal;
+
+    // } while ((recdepth < uMaxDepth) && (closestIdx != -1));
+    } while ((recdepth < 0) && (closestIdx != -1));
+
     return intensity;
 }
 
