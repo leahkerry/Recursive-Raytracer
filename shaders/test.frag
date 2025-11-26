@@ -51,7 +51,7 @@ const int SHAPE_CYLINDER = 1;
 const int SHAPE_CONE     = 2;
 const int SHAPE_SPHERE   = 3;
 
-// TODO: This should be your output color, instead of gl_FragColor
+// NOTE: This should be your output color, instead of gl_FragColor
 out vec4 outColor;
 
 
@@ -186,7 +186,7 @@ float intersectCube(vec3 ro, vec3 rd) {
     int tsIndex = 0;
     
     for (int i = 0; i < 3; i++) {
-        if (rd[i] == 0.0) continue;
+        // if (rd[i] == 0.0) continue;
         float t1 = (HALF - ro[i]) / rd[i];
         float t2 = (-HALF - ro[i]) / rd[i];
 
@@ -203,6 +203,7 @@ float intersectCube(vec3 ro, vec3 rd) {
         vec3 p = ts[j].xyz;
         float tVal = ts[j].w;
         
+        // float Half_ep = HALF;
         float Half_ep = HALF + EPSILON;
         if (p.x >= -(Half_ep) && p.x <= Half_ep &&
             p.y >= -Half_ep && p.y <= Half_ep &&
@@ -221,13 +222,18 @@ float intersectCube(vec3 ro, vec3 rd) {
 // ----------------------------------------------
 // normalCube: compute normal at intersection point in object space
 vec3 normalCube(vec3 hitPos) {
-    // DONE: implement normal computation for cube
-    if (abs(hitPos.x - HALF) < EPSILON) return vec3(1.0, 0.0, 0.0);
-    if (abs(hitPos.x + HALF) < EPSILON) return vec3(-1.0, 0.0, 0.0);
-    if (abs(hitPos.y - HALF) < EPSILON) return vec3(0.0, 1.0, 0.0);
-    if (abs(hitPos.y + HALF) < EPSILON) return vec3(0.0, -1.0, 0.0);
-    if (abs(hitPos.z - HALF) < EPSILON) return vec3(0.0, 0.0, 1.0);
-    if (abs(hitPos.z + HALF) < EPSILON) return vec3(0.0, 0.0, -1.0);
+    // NOTE: the reason why you can see the edges on some of the cubes is
+    //       because the edges peek out a bit. Changing the order of this
+    //       code changes which edges are showing. 
+    if (abs(hitPos.z - HALF) <= EPSILON) return vec3(0.0, 0.0, 1.0);
+    if (abs(hitPos.z + HALF) <= EPSILON) return vec3(0.0, 0.0, -1.0);
+
+    if (abs(hitPos.y - HALF) <= EPSILON) return vec3(0.0, 1.0, 0.0);
+    if (abs(hitPos.y + HALF) <= EPSILON) return vec3(0.0, -1.0, 0.0);
+
+    if (abs(hitPos.x - HALF) <= EPSILON) return vec3(1.0, 0.0, 0.0);
+    if (abs(hitPos.x + HALF) <= EPSILON) return vec3(-1.0, 0.0, 0.0);
+    
 }
 
 // ----------------------------------------------
@@ -440,7 +446,7 @@ float getIntersect(vec3 ro, vec3 rd, int objType) {
 
 // to help test occlusion (shadow)
 bool isInShadow(vec3 p, vec3 lightDir, float maxDist) {
-    // TODO: implement shadow ray intersection test
+    // DONE: implement shadow ray intersection test
 
     // step 1: create vector from p to lightdir
     // step 2: loop through all objects. find shortest distance
@@ -461,7 +467,8 @@ bool isInShadow(vec3 p, vec3 lightDir, float maxDist) {
         float t = getIntersect(objRayOrigin, objRayDir, objType); 
         
         // if (t > EPSILON && t <= prevT) {
-        if (t > (2.0 * EPSILON) && t <= (maxDist - EPSILON)) {
+        // if (t > (2.0 * EPSILON) && t <= (maxDist - (2. * EPSILON))) {
+        if ((t >= 2.0 * EPSILON) && (t < (maxDist - (5. * EPSILON)))) {
             return true;
         }
     }
@@ -471,17 +478,17 @@ bool isInShadow(vec3 p, vec3 lightDir, float maxDist) {
 
 vec3 computeRecursiveLight(Material mat, vec3 pEye, vec3 pWorld, vec3 normal) {
     // go to uMaxDepth
-    // TODO: delete
+    
     vec3 ambientColor    = mat.ambientColor.rgb; 
     vec3 diffuseColor    = mat.diffuseColor.rgb;
     vec3 specularColor   = mat.specularColor.rgb;
-    vec3 reflectiveColor = mat.reflectiveColor.rgb;
-
-    vec3 color = vec3(0.0);
-    // vec3 color = vec3(0.0);
+    
 
     // Ambient term (a) 
-    color = vec3(ambientColor * uGlobalKa); 
+    vec3 color = vec3(ambientColor * uGlobalKa); 
+    // vec3 color = vec3(0.0);
+
+    
 
     for (int i = 0; i < uNumLights; i++){
         
@@ -489,7 +496,7 @@ vec3 computeRecursiveLight(Material mat, vec3 pEye, vec3 pWorld, vec3 normal) {
         float pointToLightDist = abs(length(uLightPos[i] - pWorld));
 
         // TODO: uncomment shadow 
-        // if (isInShadow(pWorld, lightDir, pointToLightDist)) continue;
+        if (isInShadow(pWorld, lightDir, pointToLightDist)) continue;
     
         float NL = dot(normal, lightDir);
         vec3 lightColor = uLightColor[i];
@@ -550,12 +557,13 @@ vec3 getNormal(vec3 hitPosObj, int objType) {
 
 // bounce = recursion level (0 for primary rays)
 vec3 traceRay(vec3 rayOrigin, vec3 rayDir) {
-    int recdepth = 0;
+    int recdepth = 1;
     float prevT;
-    int closestIdx;
+    int closestIdx = -2;
     vec3 intensity = vec3(0.0);
 
     do {
+    // while ((recdepth < uMaxDepth) && (closestIdx != -1)) {
         prevT = 1e10;
         closestIdx = -1;
         
@@ -578,9 +586,9 @@ vec3 traceRay(vec3 rayOrigin, vec3 rayDir) {
         }
 
         // if is too far to render, return 0
-        if (prevT >= (1e10 - EPSILON)) {
-            return vec3(0.0);
-        }
+        // if (prevT >= (1e10 - EPSILON)) {
+        //     return vec3(0.0);
+        // }
 
         // Step 2: Get point on surface
         vec3 pEye = rayOrigin;
@@ -602,16 +610,28 @@ vec3 traceRay(vec3 rayOrigin, vec3 rayDir) {
         Material mat = fetchMaterial(closestIdx);
         // vec3 intensity = vec3(1.0);
         // here? compute it with loop. lessening intensity each time. no but then you would have to recompute the stuff.? 
+        vec3 reflectiveColor = mat.reflectiveColor.rgb;
         vec3 currintensity = computeRecursiveLight(mat, pEye, pWorld, normalWorld);
-        intensity += (pow(uGlobalKs, float(recdepth)) * currintensity);
+        if (recdepth == 1) {
+            intensity = intensity + currintensity;
+        } else {
+            // intensity += reflectiveColor * (pow(uGlobalKs, float(recdepth)) * currintensity);
+            intensity = intensity + ( reflectiveColor * uGlobalKs * currintensity);
+        }
         
         recdepth += 1;
         rayOrigin = pWorld;
         rayDir = normal;
 
-    // } while ((recdepth < uMaxDepth) && (closestIdx != -1));
-    } while ((recdepth < 0) && (closestIdx != -1));
+        
+        
 
+    } while ((recdepth <= uMaxDepth) && (closestIdx != -1));
+
+    // NOTE: do I need the bounding? 
+    for (int j = 0; j < 4; j++) {
+        intensity[j] = max(0.0, min(intensity[j], 1.0));
+    }
     return intensity;
 }
 
