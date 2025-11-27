@@ -223,7 +223,7 @@ float intersectCube(vec3 ro, vec3 rd) {
 // normalCube: compute normal at intersection point in object space
 vec3 normalCube(vec3 hitPos) {
     // NOTE: the reason why you can see the edges on some of the cubes is
-    //       because the edges peek out a bit. Changing the order of this
+    //       because the edges peek out a bit? Changing the order of this
     //       code changes which edges are showing. 
     if (abs(hitPos.z - HALF) <= EPSILON) return vec3(0.0, 0.0, 1.0);
     if (abs(hitPos.z + HALF) <= EPSILON) return vec3(0.0, 0.0, -1.0);
@@ -408,15 +408,15 @@ vec2 getTexCoordCone(vec3 hit, vec2 repeatUV) {
 // uCamWorldMatrix = inverse model view matrix
 vec3 getWorldRayDir() {
 
-    // step 1: calculate S from uv
+    // Step 1: calculate S from uv
     float u = (2.0 * gl_FragCoord.x / uResolution.x) - 1.0;
     float v = (2.0 * gl_FragCoord.y / uResolution.y) - 1.0;
     vec4 S = vec4(u, v, -1.0, 1.0);
     
-    // step 2: S into world space
+    // Step 2: S into world space
     vec4 Sworld = uCamWorldMatrix * S;
 
-    // step 3: subtract S world point from camera eye and normalize
+    // Step 3: subtract S world point from camera eye and normalize
     vec3 rd = Sworld.xyz - uCameraPos;
     return normalize(rd);
 }
@@ -452,7 +452,7 @@ bool isInShadow(vec3 p, vec3 lightDir, float maxDist) {
     // step 2: loop through all objects. find shortest distance
     // step 3: if shortest distance is less than maxdistance, return true
 
-    vec3 rayOrigin = p;
+    vec3 rayOrigin = p + ((2.0 * EPSILON) * lightDir);
     vec3 rayDir = lightDir;
 
     for (int i = 0; i < uObjectCount; i++) {
@@ -466,9 +466,7 @@ bool isInShadow(vec3 p, vec3 lightDir, float maxDist) {
 
         float t = getIntersect(objRayOrigin, objRayDir, objType); 
         
-        // if (t > EPSILON && t <= prevT) {
-        // if (t > (2.0 * EPSILON) && t <= (maxDist - (2. * EPSILON))) {
-        if ((t >= 2.0 * EPSILON) && (t < (maxDist - (5. * EPSILON)))) {
+        if ((t >= EPSILON) && (t < (maxDist - (EPSILON)))) {
             return true;
         }
     }
@@ -477,58 +475,39 @@ bool isInShadow(vec3 p, vec3 lightDir, float maxDist) {
 
 
 vec3 computeRecursiveLight(Material mat, vec3 pEye, vec3 pWorld, vec3 normal) {
-    // go to uMaxDepth
     
     vec3 ambientColor    = mat.ambientColor.rgb; 
     vec3 diffuseColor    = mat.diffuseColor.rgb;
     vec3 specularColor   = mat.specularColor.rgb;
     
 
-    // Ambient term (a) 
-    vec3 color = vec3(ambientColor * uGlobalKa); 
-    // vec3 color = vec3(0.0);
+    // Step 1: Ambient term (a) 
+    vec3 color = ambientColor * uGlobalKa; 
 
-    
-
+    // Loop over each light
     for (int i = 0; i < uNumLights; i++){
-        
+        vec3 lightColor = uLightColor[i];
         vec3 lightDir = normalize(uLightPos[i] - pWorld);
         float pointToLightDist = abs(length(uLightPos[i] - pWorld));
 
-        // TODO: uncomment shadow 
+        // Step 2: Check if in shadow
         if (isInShadow(pWorld, lightDir, pointToLightDist)) continue;
-    
+
+        // Step 3: Diffuse term (d)
         float NL = dot(normal, lightDir);
-        vec3 lightColor = uLightColor[i];
+        if (NL > 0.0) color += lightColor * uGlobalKd * diffuseColor  * NL;
 
-        // Diffuse term (d)
-        if (NL > 0.0) {
-            color += vec3(lightColor * diffuseColor * uGlobalKd* NL);
-        }
-
-        // Specular term (s)
-        vec3 viewAngle = normalize(vec3(pEye - pWorld));
+        // Step 4: Specular term (s)
+        vec3 viewAngle    = normalize(vec3(pEye - pWorld));
         vec3 reflectedRay = normalize((normal * 2.0 * dot(normal, lightDir)) - lightDir);
-        color += vec3(pow(abs(dot(viewAngle, reflectedRay)), mat.shininess) * specularColor);
-
-        // Reflective term (s, r) recursive
-
-    
-        // go to next spot
-        // color += (currcolor * uGlobalKs);
-        // color += currcolor * pow(uGlobalKs, float(0.0));
-        // pEye = pWorld; // eye point becomes world point
-        // float closestObjIdx = intersectObj(pEye, normal);
-        // pWorld = // world point becomes closest object along normal (get object)
-        // normal = // get normal of object in pWorld
-        // Step 8: bound into range 0-1
+        color += lightColor * vec3(pow(abs(dot(viewAngle, reflectedRay)), mat.shininess) * specularColor);
         
     }
+
+    // Step 5: Bound in range 0-1
     for (int j = 0; j < 4; j++) {
         color[j] = max(0.0, min(color[j], 1.0));
     }
-    
-    
 
     return color;
 }
@@ -557,43 +536,40 @@ vec3 getNormal(vec3 hitPosObj, int objType) {
 
 // bounce = recursion level (0 for primary rays)
 vec3 traceRay(vec3 rayOrigin, vec3 rayDir) {
-    int recdepth = 1;
+
+    int recdepth = 0;
+    int closestIdx;
     float prevT;
-    int closestIdx = -2;
     vec3 intensity = vec3(0.0);
 
     do {
-    // while ((recdepth < uMaxDepth) && (closestIdx != -1)) {
         prevT = 1e10;
         closestIdx = -1;
-        
+
+        // Step 1: Check for intersection w each obj (NOTE: octrees?)
         for (int i = 0; i < uObjectCount; i++) {
 
             int objType = int(fetchFloat(0, i));
 
-            // NOTE: convert ro and rd into object space
-            mat4 objMatrix = inverse(fetchWorldMatrix(i));
+            // NOTE: convert rayOrigin and rayDir into object space
+            mat4 objMatrix    = inverse(fetchWorldMatrix(i));
             vec3 objRayOrigin = vec3(objMatrix * vec4(rayOrigin, 1.0));
-            vec3 objRayDir = vec3(objMatrix * vec4(rayDir, 0.0));
+            vec3 objRayDir    = vec3(objMatrix * vec4(rayDir, 0.0));
 
             float t = getIntersect(objRayOrigin, objRayDir, objType); 
             
-            // if t is closer than the previous object and in front of the camera
+            // Update t if is closer than the previous object 
             if (t > EPSILON && t <= prevT) {
                 closestIdx = i;
                 prevT = t;
             }
         }
 
-        // if is too far to render, return 0
-        // if (prevT >= (1e10 - EPSILON)) {
-        //     return vec3(0.0);
-        // }
+        // if is too far to render, end loop
+        if (prevT >= (1e10 - EPSILON)) break;
 
         // Step 2: Get point on surface
-        vec3 pEye = rayOrigin;
-        vec3 dir = rayDir;
-        vec3 pWorld = pEye + (dir * prevT);
+        vec3 pWorld = rayOrigin + (rayDir * prevT);
 
         // Step 3: Get normal in object coords
         int objType = int(fetchFloat(0, closestIdx));
@@ -608,36 +584,36 @@ vec3 traceRay(vec3 rayOrigin, vec3 rayDir) {
 
         // Step 5: Solve recursive lighting equation
         Material mat = fetchMaterial(closestIdx);
-        // vec3 intensity = vec3(1.0);
-        // here? compute it with loop. lessening intensity each time. no but then you would have to recompute the stuff.? 
-        vec3 reflectiveColor = mat.reflectiveColor.rgb;
-        vec3 currintensity = computeRecursiveLight(mat, pEye, pWorld, normalWorld);
-        if (recdepth == 1) {
-            intensity = intensity + currintensity;
-        } else {
-            // intensity += reflectiveColor * (pow(uGlobalKs, float(recdepth)) * currintensity);
-            intensity = intensity + ( reflectiveColor * uGlobalKs * currintensity);
-        }
-        
+
+        vec3 currintensity = computeRecursiveLight(mat, rayOrigin, pWorld, normalWorld);
+
+        // If recursing, multiply by OrKs
+        if (recdepth >= 1) {
+            vec3 reflectiveColor = mat.reflectiveColor.rgb;
+            currintensity *= reflectiveColor * pow(uGlobalKs, float(recdepth));
+        } 
+
+        intensity += currintensity;
         recdepth += 1;
         rayOrigin = pWorld;
         rayDir = normal;
 
         
-        
 
-    } while ((recdepth <= uMaxDepth) && (closestIdx != -1));
+    } while ((recdepth < uMaxDepth) && (closestIdx != -1));
 
-    // NOTE: do I need the bounding? 
+    // Bound in range 0-1
     for (int j = 0; j < 4; j++) {
         intensity[j] = max(0.0, min(intensity[j], 1.0));
     }
+
     return intensity;
 }
 
 // ----------------------------------------------
 // main: iterate over all objects, test intersection, and shade
 void main() {
+
     // Compute ray origin and direction in world space
     vec3 rayOrigin = uCameraPos;
     vec3 rayDir    = getWorldRayDir();
