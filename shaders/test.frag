@@ -406,11 +406,11 @@ vec2 getTexCoordCone(vec3 hit, vec2 repeatUV) {
 // ----------------------------------------------
 // getWorldRayDir: reconstruct world-space ray direction using uCamWorldMatrix
 // uCamWorldMatrix = inverse model view matrix
-vec3 getWorldRayDir() {
+vec3 getWorldRayDir(float x, float y) {
 
     // Step 1: calculate S from uv
-    float u = (2.0 * gl_FragCoord.x / uResolution.x) - 1.0;
-    float v = (2.0 * gl_FragCoord.y / uResolution.y) - 1.0;
+    float u = (2.0 * x / uResolution.x) - 1.0;
+    float v = (2.0 * y / uResolution.y) - 1.0;
     vec4 S = vec4(u, v, -1.0, 1.0);
     
     // Step 2: S into world space
@@ -616,10 +616,29 @@ void main() {
 
     // Compute ray origin and direction in world space
     vec3 rayOrigin = uCameraPos;
-    vec3 rayDir    = getWorldRayDir();
+    vec3 rayDir    = getWorldRayDir(gl_FragCoord.x, gl_FragCoord.y);
+    float pixelsize = gl_FragCoord.x / uResolution.x;
+
+    // vec2 xAdditions = vec2(-pixelsize * 0.5, pixelsize * 0.5);
+    vec3 color = traceRay(rayOrigin, rayDir);
+    // rayDir = getWorldRayDir(gl_FragCoord.x + 1.0, gl_FragCoord.y + 1.0);
+    // color = color + traceRay(rayOrigin, rayDir);
+    // color = color * 0.5;
+    // if (any(notEqual(color, vec3(0.0)))) {
+    for (int xadd = -1; xadd <= 1; xadd+=2) {
+        for (int yadd = -1; yadd <= 1; yadd+=2) {
+            rayDir    = getWorldRayDir(gl_FragCoord.x + pixelsize * float(xadd), gl_FragCoord.y + pixelsize * float(yadd));
+            color += traceRay(rayOrigin, rayDir);
+        }
+    }
+    color = color * 0.2;
+    // }
+    // color += vec3(0.5);
+    
 
     // process and get final color 
-    vec3 color = traceRay(rayOrigin, rayDir);
+    
+    
     outColor = vec4(color, 1.0);
 
 }
