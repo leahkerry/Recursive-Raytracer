@@ -389,7 +389,7 @@ vec2 getTexCoordSphere(vec3 hit, vec2 repeatUV) {
     float Py = hit.y;
     float Pz = hit.z;
 
-    float theta = atan(Pz, -Px);
+    float theta = atan(-Pz, -Px);
     float u = 0.0;
 
     if (theta < 0.0) {
@@ -404,45 +404,79 @@ vec2 getTexCoordSphere(vec3 hit, vec2 repeatUV) {
 }
 
 vec2 getTexCoordCube(vec3 hit, vec3 dominantFace, vec2 repeatUV) {
-    // TODO: implement cubic mapping
+    // Done: implement cubic mapping
     float u = 0.0;
     float v = 0.0;
     
+    float Px = hit.x;
+    float Py = hit.y;
+    float Pz = hit.z;
+
     float dfx = dominantFace.x;
     float dfy = dominantFace.y;
     float dfz = dominantFace.z;
     
     if (dfx > HALF) {
-        u = -hit.z;
-        v = hit.y;
+        u = -Pz;
+        v = Py;
     } else if (dfx < -HALF){
-        u = hit.z;
-        v = hit.y;
+        u = Pz;
+        v = Py;
     } else if (dfy > HALF) {
-        u = hit.x;
-        v = -hit.z;
+        u = Px;
+        v = -Pz;
     } else if (dfy < -HALF) {
-        u = hit.x;
-        v = hit.z;
+        u = Px;
+        v = Pz;
     } else if (dfz > HALF) {
-        u = hit.x;
-        v = hit.y;
+        u = Px;
+        v = Py;
     } else {
-        u = -hit.x;
-        v = hit.y;
+        u = -Px;
+        v = Py;
     }
 
     return vec2(u + HALF, v + HALF) * repeatUV;
 }
 
+// Note: texture mapping for cone and cylinder are the same i think (LC)
 vec2 getTexCoordCylinder(vec3 hit, vec2 repeatUV) {
-    // TODO: implement cylindrical mapping
-    return vec2(0.0);
+    // DONE: implement cylindrical mapping
+    // TODO: add texture mapping to cap
+
+    float Px = hit.x;
+    float Py = hit.y;
+    float Pz = hit.z;
+
+    float theta = atan(-Pz, -Px);
+    float u = 0.0;
+    if (theta < 0.0) {
+        u = -theta / (2.0 * PI);
+    } else {
+        u = 1.0 - (theta / (2.0 * PI));
+    }
+
+    float v = -Py;
+    return vec2(u, v + HALF) * repeatUV;
 }
 
 vec2 getTexCoordCone(vec3 hit, vec2 repeatUV) {
-    // TODO: implement conical mapping
-    return vec2(0.0);
+    // DONE: implement conical mapping
+
+    float Px = hit.x;
+    float Py = hit.y;
+    float Pz = hit.z;
+
+    float theta = atan(-Pz, -Px);
+    float u = 0.0;
+    if (theta < 0.0) {
+        u = -theta / (2.0 * PI);
+    } else {
+        u = 1.0 - (theta / (2.0 * PI));
+    }
+
+    float v = -Py;
+    return vec2(u, v + HALF) * repeatUV;
 }
 
 
@@ -543,7 +577,7 @@ vec3 computeRecursiveLight(Material mat, vec3 pEye, vec3 pWorld, vec3 normal) {
         // Step 4: Specular term (s)
         vec3 reflectedRay = normalize((normal * 2.0 * dot(normal, lightDir)) - lightDir);
         vec3 viewAngle = normalize(vec3(pEye - pWorld));
-        color += lightColor * uGlobalKs * vec3(pow(abs(dot(viewAngle, reflectedRay)), mat.shininess) * specularColor);
+        color += lightColor * vec3(pow(abs(dot(viewAngle, reflectedRay)), mat.shininess) * specularColor);
         
     }
 
@@ -554,7 +588,6 @@ vec3 computeRecursiveLight(Material mat, vec3 pEye, vec3 pWorld, vec3 normal) {
 
     return color;
 }
-
 
 // TODO: Fix parameter type
 vec3 getNormal(vec3 hitPosObj, int objType) {
@@ -646,14 +679,13 @@ vec3 traceRay(vec3 rayOrigin, vec3 rayDir) {
                 vec3 dominantFace = getNormal(pObj, shapeType);
                 objTexCoord = getTexCoordCube(pObj, dominantFace, mat.repeatUV);
             }
-            // else if (shapeType == SHAPE_CYLINDER) {
-            //     objTexCoord = getTexCoordCylinder(pObj, mat.repeatUV);
-            // }
-            // else if (shapeType == SHAPE_CONE) {
-            //     objTexCoord = getTexCoordCone(pObj, mat.repeatUV);
-            // }
+            else if (shapeType == SHAPE_CYLINDER) {
+                objTexCoord = getTexCoordCylinder(pObj, mat.repeatUV);
+            }
+            else if (shapeType == SHAPE_CONE) {
+                objTexCoord = getTexCoordCone(pObj, mat.repeatUV);
+            }
             
-            // int texIdx = int(mat.textureIndex);
             // vec4 texColorWorld = texture(uTextures[texIdx], objTexCoord);
 
             int texIdx = int(mat.textureIndex);
