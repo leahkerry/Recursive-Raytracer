@@ -383,13 +383,56 @@ vec3 normalCone(vec3 hitPos) {
 }
 
 vec2 getTexCoordSphere(vec3 hit, vec2 repeatUV) {
-    // TODO: implement spherical mapping
-    return vec2(0.0);
+    // DONE: implement spherical mapping
+    // DONE: apply tiling (based on repeatUV)
+    float Px = hit.x;
+    float Py = hit.y;
+    float Pz = hit.z;
+
+    float theta = atan(Pz, -Px);
+    float u = 0.0;
+
+    if (theta < 0.0) {
+        u = -theta / (2.0 * PI);
+    } else {
+        u = 1.0 - (theta / (2.0 * PI));
+    }
+    float radius = length(hit);
+    float v = -asin(1.0 * Py / radius) / PI + 0.5;
+
+    return vec2(u, v) * repeatUV;
 }
 
 vec2 getTexCoordCube(vec3 hit, vec3 dominantFace, vec2 repeatUV) {
     // TODO: implement cubic mapping
-    return vec2(0.0);
+    float u = 0.0;
+    float v = 0.0;
+    
+    float dfx = dominantFace.x;
+    float dfy = dominantFace.y;
+    float dfz = dominantFace.z;
+    
+    if (dfx > HALF) {
+        u = -hit.z;
+        v = hit.y;
+    } else if (dfx < -HALF){
+        u = hit.z;
+        v = hit.y;
+    } else if (dfy > HALF) {
+        u = hit.x;
+        v = -hit.z;
+    } else if (dfy < -HALF) {
+        u = hit.x;
+        v = hit.z;
+    } else if (dfz > HALF) {
+        u = hit.x;
+        v = hit.y;
+    } else {
+        u = -hit.x;
+        v = hit.y;
+    }
+
+    return vec2(u + HALF, v + HALF) * repeatUV;
 }
 
 vec2 getTexCoordCylinder(vec3 hit, vec2 repeatUV) {
@@ -498,9 +541,9 @@ vec3 computeRecursiveLight(Material mat, vec3 pEye, vec3 pWorld, vec3 normal) {
         if (NL > 0.0) color += lightColor * uGlobalKd * diffuseColor  * NL;
 
         // Step 4: Specular term (s)
-        vec3 viewAngle    = normalize(vec3(pEye - pWorld));
         vec3 reflectedRay = normalize((normal * 2.0 * dot(normal, lightDir)) - lightDir);
-        color += lightColor * vec3(pow(abs(dot(viewAngle, reflectedRay)), mat.shininess) * specularColor);
+        vec3 viewAngle = normalize(vec3(pEye - pWorld));
+        color += lightColor * uGlobalKs * vec3(pow(abs(dot(viewAngle, reflectedRay)), mat.shininess) * specularColor);
         
     }
 
@@ -541,6 +584,7 @@ vec3 traceRay(vec3 rayOrigin, vec3 rayDir) {
     int closestIdx;
     float prevT;
     vec3 intensity = vec3(0.0);
+    vec3 reflectedIntesity = vec3(1.0);
 
     do {
         prevT = 1e10;
@@ -587,18 +631,62 @@ vec3 traceRay(vec3 rayOrigin, vec3 rayDir) {
 
         vec3 currintensity = computeRecursiveLight(mat, rayOrigin, pWorld, normalWorld);
 
+        // TODO: texture mapping
+        // - Blend it with the currintensity rather than just add it
+        // - Get right texture idx (might have to use a glsl function)
+        // - Implement for each shape, adjust accordingly
+        if (mat.useTexture == 1.0) {
+            vec2 objTexCoord = vec2(0.0);
+            int shapeType = int(fetchFloat(0, closestIdx));
+            
+            if (shapeType == SHAPE_SPHERE) {
+                objTexCoord = getTexCoordSphere(pObj, mat.repeatUV);
+            }
+            else if (shapeType == SHAPE_CUBE) {
+                vec3 dominantFace = getNormal(pObj, shapeType);
+                objTexCoord = getTexCoordCube(pObj, dominantFace, mat.repeatUV);
+            }
+            // else if (shapeType == SHAPE_CYLINDER) {
+            //     objTexCoord = getTexCoordCylinder(pObj, mat.repeatUV);
+            // }
+            // else if (shapeType == SHAPE_CONE) {
+            //     objTexCoord = getTexCoordCone(pObj, mat.repeatUV);
+            // }
+            
+            // int texIdx = int(mat.textureIndex);
+            // vec4 texColorWorld = texture(uTextures[texIdx], objTexCoord);
+
+            int texIdx = int(mat.textureIndex);
+            vec4 texColorWorld = vec4(0.0);
+
+            switch (texIdx) {
+                case 0: texColorWorld = texture(uTextures[0], objTexCoord); break;
+                case 1: texColorWorld = texture(uTextures[1], objTexCoord); break;
+                case 2: texColorWorld = texture(uTextures[2], objTexCoord); break;
+                case 3: texColorWorld = texture(uTextures[3], objTexCoord); break;
+                case 4: texColorWorld = texture(uTextures[4], objTexCoord); break;
+                case 5: texColorWorld = texture(uTextures[5], objTexCoord); break;
+                case 6: texColorWorld = texture(uTextures[6], objTexCoord); break;
+                case 7: texColorWorld = texture(uTextures[7], objTexCoord); break;
+            }
+
+            // texColorWorld = texture(uTextures[0], objTexCoord);
+            currintensity *= vec3(texColorWorld);
+            // currintensity = vec3(objTexCoord, 0.0);  
+        }
+
+        intensity += currintensity * reflectedIntesity;
+
         // If recursing, multiply by OrKs
         if (recdepth >= 1) {
             vec3 reflectiveColor = mat.reflectiveColor.rgb;
-            currintensity *= reflectiveColor * pow(uGlobalKs, float(recdepth));
+            reflectedIntesity *= reflectiveColor * uGlobalKs;
         } 
 
-        intensity += currintensity;
         recdepth += 1;
         rayOrigin = pWorld;
-        rayDir = normal;
-
-        
+        // rayDir = normal;
+        rayDir = rayDir - 2.0 * dot(rayDir, normalWorld) * normalWorld;
 
     } while ((recdepth < uMaxDepth) && (closestIdx != -1));
 
