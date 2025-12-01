@@ -457,10 +457,10 @@ vec2 getTexCoordCylinder(vec3 hit, vec2 repeatUV) {
     float v = -Py;
 
     // DONE ISH: add texture mapping to cap
-    // TODO: Fix speckled texture
-    if (Py == HALF || Py == -HALF) {
-        u = (Px + HALF + EPSILON) / ((HALF + EPSILON) * 2.0);
-        v = (Pz + HALF + EPSILON) / ((HALF + EPSILON) * 2.0);
+    // DONE: Fix speckled texture
+    if (abs(Py - HALF) < EPSILON || abs(Py + HALF) < EPSILON) {
+        u = (Px + HALF) / ((HALF) * 2.0);
+        v = (Pz + HALF) / ((HALF) * 2.0);
         return vec2(u, v) * repeatUV;
     }
 
@@ -596,7 +596,7 @@ vec3 computeRecursiveLight(Material mat, vec3 pEye, vec3 pWorld, vec3 normal) {
     return color;
 }
 
-// TODO: Fix parameter type
+// DONE: Fix parameter type
 vec3 getNormal(vec3 hitPosObj, int objType) {
     switch (objType) {
         case SHAPE_CUBE: {
@@ -671,7 +671,7 @@ vec3 traceRay(vec3 rayOrigin, vec3 rayDir) {
 
         vec3 currintensity = computeRecursiveLight(mat, rayOrigin, pWorld, normalWorld);
 
-        // TODO: texture mapping
+        // DONE: texture mapping
         // - Blend it with the currintensity rather than just add it
         // - Get right texture idx (might have to use a glsl function)
         // - Implement for each shape, adjust accordingly
@@ -693,8 +693,6 @@ vec3 traceRay(vec3 rayOrigin, vec3 rayDir) {
                 objTexCoord = getTexCoordCone(pObj, mat.repeatUV);
             }
             
-            // vec4 texColorWorld = texture(uTextures[texIdx], objTexCoord);
-
             int texIdx = int(mat.textureIndex);
             vec4 texColorWorld = vec4(0.0);
 
@@ -709,9 +707,7 @@ vec3 traceRay(vec3 rayOrigin, vec3 rayDir) {
                 case 7: texColorWorld = texture(uTextures[7], objTexCoord); break;
             }
 
-            // texColorWorld = texture(uTextures[0], objTexCoord);
             currintensity *= vec3(texColorWorld);
-            // currintensity = vec3(objTexCoord, 0.0);  
         }
 
         intensity += currintensity * reflectedIntesity;
@@ -724,7 +720,6 @@ vec3 traceRay(vec3 rayOrigin, vec3 rayDir) {
 
         recdepth += 1;
         rayOrigin = pWorld;
-        // rayDir = normal;
         rayDir = rayDir - 2.0 * dot(rayDir, normalWorld) * normalWorld;
 
     } while ((recdepth < uMaxDepth) && (closestIdx != -1));
