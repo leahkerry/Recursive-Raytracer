@@ -442,8 +442,6 @@ vec2 getTexCoordCube(vec3 hit, vec3 dominantFace, vec2 repeatUV) {
 // Note: texture mapping for cone and cylinder are the same i think (LC)
 vec2 getTexCoordCylinder(vec3 hit, vec2 repeatUV) {
     // DONE: implement cylindrical mapping
-    // TODO: add texture mapping to cap
-
     float Px = hit.x;
     float Py = hit.y;
     float Pz = hit.z;
@@ -457,6 +455,15 @@ vec2 getTexCoordCylinder(vec3 hit, vec2 repeatUV) {
     }
 
     float v = -Py;
+
+    // DONE ISH: add texture mapping to cap
+    // TODO: Fix speckled texture
+    if (Py == HALF || Py == -HALF) {
+        u = (Px + HALF + EPSILON) / ((HALF + EPSILON) * 2.0);
+        v = (Pz + HALF + EPSILON) / ((HALF + EPSILON) * 2.0);
+        return vec2(u, v) * repeatUV;
+    }
+
     return vec2(u, v + HALF) * repeatUV;
 }
 
