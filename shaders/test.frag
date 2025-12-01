@@ -159,7 +159,7 @@ float intersectSphere(vec3 ro, vec3 rd) {
     float C = dot(ro, ro) - (0.5 * 0.5);
 
     float discriminant = (B * B) - (4.0 * A * C);
-    if (discriminant < 0.0) return -1.0;
+    if (discriminant < EPSILON) return -1.0;
     
     float t1 = ((-1.0 * B) + sqrt(discriminant)) / (2.0 * A);
     float t2 = ((-1.0 * B) - sqrt(discriminant)) / (2.0 * A);
@@ -208,9 +208,9 @@ float intersectCube(vec3 ro, vec3 rd) {
         if (p.x >= -(Half_ep) && p.x <= Half_ep &&
             p.y >= -Half_ep && p.y <= Half_ep &&
             p.z >= -Half_ep && p.z <= Half_ep &&
-            tVal > 0.0) {
+            tVal > EPSILON) {
             
-            if (minT < 0.0 || tVal < minT) {
+            if (minT < EPSILON || tVal < minT) {
                 minT = tVal;
             }
         }
@@ -253,7 +253,7 @@ float intersectCylinder(vec3 ro, vec3 rd) {
     float discriminant = (B * B) - (4.0 * A * C);
 
     // Side face
-    if (discriminant >= 0.0) {
+    if (discriminant >= EPSILON) {
         float t1 = ((-1.0 * B) + sqrt(discriminant)) / (2.0 * A);
         float t2 = ((-1.0 * B) - sqrt(discriminant)) / (2.0 * A);
 
@@ -261,18 +261,18 @@ float intersectCylinder(vec3 ro, vec3 rd) {
         vec3 p1 = ro + rd * t1;
         vec3 p2 = ro + rd * t2;
 
-        if (t1 > 0.0) ts[tsIndex++] = vec4(p1, t1);
-        if (t2 > 0.0) ts[tsIndex++] = vec4(p2, t2);
+        if (t1 > EPSILON) ts[tsIndex++] = vec4(p1, t1);
+        if (t2 > EPSILON) ts[tsIndex++] = vec4(p2, t2);
     }
 
     // Top and bottom faces
-    if (rd[1] != 0.0) {
+    if (rd[1] != EPSILON) {
         float t3 = (HALF - ro[1]) / rd[1];
         float t4 = (-1.0 * HALF - ro[1]) / rd[1];
         vec3 p3 = ro + rd * t3;
         vec3 p4 = ro + rd * t4;
-        if (t3 > 0.0) ts[tsIndex++] = vec4(p3, t3);
-        if (t4 > 0.0) ts[tsIndex++] = vec4(p4, t4);
+        if (t3 > EPSILON) ts[tsIndex++] = vec4(p3, t3);
+        if (t4 > EPSILON) ts[tsIndex++] = vec4(p4, t4);
     }
 
     // Find closest intersection 
@@ -284,7 +284,7 @@ float intersectCylinder(vec3 ro, vec3 rd) {
         if ((p.x*p.x + p.z*p.z) <= ((HALF*HALF) + EPSILON)) {
             // If within height limit
             if (p.y <= (HALF + EPSILON) && p.y >= -(HALF + EPSILON)) {
-                if (minT < 0.0 || tVal < minT) {
+                if (minT < EPSILON || tVal < minT) {
                     minT = tVal;
                 }
             }
@@ -331,7 +331,7 @@ float intersectCone(vec3 ro, vec3 rd) {
     float C = (ro[0] * ro[0]) + (ro[2] * ro[2]) - (pow(yapex - ro[1], 2.0) * r2h2);
 
     float discriminant = (B * B) - (4.0 * A * C);
-    if (discriminant < 0.0) return -1.0;
+    if (discriminant < EPSILON) return -1.0;
 
     float t1 = ((-1.0 * B) + sqrt(discriminant)) / (2.0 * A);
     float t2 = ((-1.0 * B) - sqrt(discriminant)) / (2.0 * A);
@@ -339,14 +339,14 @@ float intersectCone(vec3 ro, vec3 rd) {
     vec3 p1 = ro + rd * t1;
     vec3 p2 = ro + rd * t2;
 
-    if (t1 > 0.0) ts[tsIndex++] = vec4(p1, t1);
-    if (t2 > 0.0) ts[tsIndex++] = vec4(p2, t2);
+    if (t1 > EPSILON) ts[tsIndex++] = vec4(p1, t1);
+    if (t2 > EPSILON) ts[tsIndex++] = vec4(p2, t2);
 
     // the base
-    if (rd[1] != 0.0) {
+    if (rd[1] != EPSILON) {
         float t3 = (-1.0 * HALF - ro[1]) / rd[1];
         vec3 p3 = ro + rd * t3;
-        if (t3 > 0.0) ts[tsIndex++] = vec4(p3, t3);
+        if (t3 > EPSILON) ts[tsIndex++] = vec4(p3, t3);
     }
 
     for (int i = 0; i < tsIndex; i++) {
@@ -355,13 +355,13 @@ float intersectCone(vec3 ro, vec3 rd) {
         if ((p.x*p.x + p.z*p.z) <= (HALF*HALF + EPSILON)) {
             // Bottom cap (y = -0.5)
             if (p.y > (- HALF - EPSILON) && p.y < (- HALF + EPSILON)) {
-                if (minT < 0.0 || tVal < minT) {
+                if (minT < EPSILON || tVal < minT) {
                     minT = tVal;
                 }
             }
             // inbetweens
             else if (p.y > (-HALF - EPSILON) && p.y < (HALF + EPSILON)) {
-                if (minT < 0.0 || tVal < minT) {
+                if (minT < EPSILON || tVal < minT) {
                     minT = tVal;
                 }
             }
@@ -392,7 +392,7 @@ vec2 getTexCoordSphere(vec3 hit, vec2 repeatUV) {
     float theta = atan(-Pz, -Px);
     float u = 0.0;
 
-    if (theta < 0.0) {
+    if (theta < EPSILON) {
         u = -theta / (2.0 * PI);
     } else {
         u = 1.0 - (theta / (2.0 * PI));
@@ -448,7 +448,7 @@ vec2 getTexCoordCylinder(vec3 hit, vec2 repeatUV) {
 
     float theta = atan(-Pz, -Px);
     float u = 0.0;
-    if (theta < 0.0) {
+    if (theta < EPSILON) {
         u = -theta / (2.0 * PI);
     } else {
         u = 1.0 - (theta / (2.0 * PI));
@@ -456,8 +456,8 @@ vec2 getTexCoordCylinder(vec3 hit, vec2 repeatUV) {
 
     float v = -Py;
 
-    // DONE ISH: add texture mapping to cap
-    // DONE: Fix speckled texture
+    // DONE: add texture mapping to cap
+    // DONE: fix speckled texture
     if (abs(Py - HALF) < EPSILON || abs(Py + HALF) < EPSILON) {
         u = (Px + HALF) / ((HALF) * 2.0);
         v = (Pz + HALF) / ((HALF) * 2.0);
@@ -476,7 +476,7 @@ vec2 getTexCoordCone(vec3 hit, vec2 repeatUV) {
 
     float theta = atan(-Pz, -Px);
     float u = 0.0;
-    if (theta < 0.0) {
+    if (theta < EPSILON) {
         u = -theta / (2.0 * PI);
     } else {
         u = 1.0 - (theta / (2.0 * PI));
@@ -579,17 +579,17 @@ vec3 computeRecursiveLight(Material mat, vec3 pEye, vec3 pWorld, vec3 normal) {
 
         // Step 3: Diffuse term (d)
         float NL = dot(normal, lightDir);
-        if (NL > 0.0) color += lightColor * uGlobalKd * diffuseColor  * NL;
+        if (NL > EPSILON) color += lightColor * uGlobalKd * diffuseColor  * NL;
 
         // Step 4: Specular term (s)
         vec3 reflectedRay = normalize((normal * 2.0 * dot(normal, lightDir)) - lightDir);
         vec3 viewAngle = normalize(vec3(pEye - pWorld));
-        color += lightColor * vec3(pow(abs(dot(viewAngle, reflectedRay)), mat.shininess) * specularColor);
+        color += lightColor * uGlobalKs * vec3(pow(abs(dot(viewAngle, reflectedRay)), mat.shininess) * specularColor);
         
     }
 
     // Step 5: Bound in range 0-1
-    for (int j = 0; j < 4; j++) {
+    for (int j = 0; j < 3; j++) {
         color[j] = max(0.0, min(color[j], 1.0));
     }
 
@@ -720,12 +720,14 @@ vec3 traceRay(vec3 rayOrigin, vec3 rayDir) {
 
         recdepth += 1;
         rayOrigin = pWorld;
-        rayDir = rayDir - 2.0 * dot(rayDir, normalWorld) * normalWorld;
+        // rayDir = normalize(rayDir - (2.0 * dot(rayDir, normalWorld) * normalWorld));
+        // rayDir = normal;
+        rayDir = reflect(rayDir, normalWorld);
 
     } while ((recdepth < uMaxDepth) && (closestIdx != -1));
 
     // Bound in range 0-1
-    for (int j = 0; j < 4; j++) {
+    for (int j = 0; j < 3; j++) {
         intensity[j] = max(0.0, min(intensity[j], 1.0));
     }
 
