@@ -459,8 +459,8 @@ vec2 getTexCoordCylinder(vec3 hit, vec2 repeatUV) {
     // DONE: add texture mapping to cap
     // DONE: fix speckled texture
     if (abs(Py - HALF) < EPSILON || abs(Py + HALF) < EPSILON) {
-        u = (Px + HALF) / ((HALF) * 2.0);
-        v = (Pz + HALF) / ((HALF) * 2.0);
+        u = (Px + HALF) / (HALF * 2.0);
+        v = (Pz + HALF) / (HALF * 2.0);
         return vec2(u, v) * repeatUV;
     }
 
@@ -469,7 +469,6 @@ vec2 getTexCoordCylinder(vec3 hit, vec2 repeatUV) {
 
 vec2 getTexCoordCone(vec3 hit, vec2 repeatUV) {
     // DONE: implement conical mapping
-
     float Px = hit.x;
     float Py = hit.y;
     float Pz = hit.z;
@@ -483,6 +482,14 @@ vec2 getTexCoordCone(vec3 hit, vec2 repeatUV) {
     }
 
     float v = -Py;
+
+    // DONE: add texture mapping to base
+    if (abs(Py - HALF) < EPSILON) {
+        u = (Px + HALF) / (HALF * 2.0);
+        v = (Pz + HALF) / (HALF * 2.0);
+        return vec2(u, v) * repeatUV;
+    }
+
     return vec2(u, v + HALF) * repeatUV;
 }
 
@@ -557,14 +564,72 @@ bool isInShadow(vec3 p, vec3 lightDir, float maxDist) {
     return false; 
 }
 
+// DONE: Fix parameter type
+vec3 getNormal(vec3 hitPosObj, int objType) {
+    switch (objType) {
+        case SHAPE_CUBE: {
+            return normalCube(hitPosObj);
+        }
+        case SHAPE_SPHERE: {
+            return normalSphere(hitPosObj);
+        }
+        case SHAPE_CYLINDER: {
+            return normalCylinder(hitPosObj);
+        }
+        case SHAPE_CONE: {
+            return normalCone(hitPosObj);
+        }
+        default:
+            break;
+    }
+    return vec3(0.0, 0.0, 0.0);
+}
 
-vec3 computeRecursiveLight(Material mat, vec3 pEye, vec3 pWorld, vec3 normal) {
-    
+vec3 computeRecursiveLight(Material mat, vec3 pEye, vec3 pWorld, vec3 normal, int closestIdx, vec3 pObj) {
     vec3 ambientColor    = mat.ambientColor.rgb;
     vec3 diffuseColor    = mat.diffuseColor.rgb;
     vec3 specularColor   = mat.specularColor.rgb;
     
+    // DONE: texture mapping
+    // - Blend it with the currintensity rather than just add it
+    // - Get right texture idx (might have to use a glsl function)
+    // - Implement for each shape, adjust accordingly
+    if (mat.useTexture == 1.0) {
+        vec2 objTexCoord = vec2(0.0);
+        int shapeType = int(fetchFloat(0, closestIdx));
+        
+        if (shapeType == SHAPE_SPHERE) {
+            objTexCoord = getTexCoordSphere(pObj, mat.repeatUV);
+        }
+        else if (shapeType == SHAPE_CUBE) {
+            vec3 dominantFace = getNormal(pObj, shapeType);
+            objTexCoord = getTexCoordCube(pObj, dominantFace, mat.repeatUV);
+        }
+        else if (shapeType == SHAPE_CYLINDER) {
+            objTexCoord = getTexCoordCylinder(pObj, mat.repeatUV);
+        }
+        else if (shapeType == SHAPE_CONE) {
+            objTexCoord = getTexCoordCone(pObj, mat.repeatUV);
+        }
+        
+        int texIdx = int(mat.textureIndex);
+        vec4 texColorWorld = vec4(0.0);
 
+        switch (texIdx) {
+            case 0: texColorWorld = texture(uTextures[0], objTexCoord); break;
+            case 1: texColorWorld = texture(uTextures[1], objTexCoord); break;
+            case 2: texColorWorld = texture(uTextures[2], objTexCoord); break;
+            case 3: texColorWorld = texture(uTextures[3], objTexCoord); break;
+            case 4: texColorWorld = texture(uTextures[4], objTexCoord); break;
+            case 5: texColorWorld = texture(uTextures[5], objTexCoord); break;
+            case 6: texColorWorld = texture(uTextures[6], objTexCoord); break;
+            case 7: texColorWorld = texture(uTextures[7], objTexCoord); break;
+        }
+
+        ambientColor = texColorWorld.rgb;
+        diffuseColor = texColorWorld.rgb;
+    }
+    
     // Step 1: Ambient term (a) 
     vec3 color = ambientColor * uGlobalKa;
 
@@ -601,27 +666,6 @@ vec3 computeRecursiveLight(Material mat, vec3 pEye, vec3 pWorld, vec3 normal) {
     }
 
     return color;
-}
-
-// DONE: Fix parameter type
-vec3 getNormal(vec3 hitPosObj, int objType) {
-    switch (objType) {
-        case SHAPE_CUBE: {
-            return normalCube(hitPosObj);
-        }
-        case SHAPE_SPHERE: {
-            return normalSphere(hitPosObj);
-        }
-        case SHAPE_CYLINDER: {
-            return normalCylinder(hitPosObj);
-        }
-        case SHAPE_CONE: {
-            return normalCone(hitPosObj);
-        }
-        default:
-            break;
-    }
-    return vec3(0.0, 0.0, 0.0);
 }
 
 // bounce = recursion level (0 for primary rays)
@@ -675,48 +719,7 @@ vec3 traceRay(vec3 rayOrigin, vec3 rayDir) {
 
         // Step 5: Solve recursive lighting equation
         Material mat = fetchMaterial(closestIdx);
-
-        vec3 currintensity = computeRecursiveLight(mat, rayOrigin, pWorld, normalWorld);
-
-        // DONE: texture mapping
-        // - Blend it with the currintensity rather than just add it
-        // - Get right texture idx (might have to use a glsl function)
-        // - Implement for each shape, adjust accordingly
-        if (mat.useTexture == 1.0) {
-            vec2 objTexCoord = vec2(0.0);
-            int shapeType = int(fetchFloat(0, closestIdx));
-            
-            if (shapeType == SHAPE_SPHERE) {
-                objTexCoord = getTexCoordSphere(pObj, mat.repeatUV);
-            }
-            else if (shapeType == SHAPE_CUBE) {
-                vec3 dominantFace = getNormal(pObj, shapeType);
-                objTexCoord = getTexCoordCube(pObj, dominantFace, mat.repeatUV);
-            }
-            else if (shapeType == SHAPE_CYLINDER) {
-                objTexCoord = getTexCoordCylinder(pObj, mat.repeatUV);
-            }
-            else if (shapeType == SHAPE_CONE) {
-                objTexCoord = getTexCoordCone(pObj, mat.repeatUV);
-            }
-            
-            int texIdx = int(mat.textureIndex);
-            vec4 texColorWorld = vec4(0.0);
-
-            switch (texIdx) {
-                case 0: texColorWorld = texture(uTextures[0], objTexCoord); break;
-                case 1: texColorWorld = texture(uTextures[1], objTexCoord); break;
-                case 2: texColorWorld = texture(uTextures[2], objTexCoord); break;
-                case 3: texColorWorld = texture(uTextures[3], objTexCoord); break;
-                case 4: texColorWorld = texture(uTextures[4], objTexCoord); break;
-                case 5: texColorWorld = texture(uTextures[5], objTexCoord); break;
-                case 6: texColorWorld = texture(uTextures[6], objTexCoord); break;
-                case 7: texColorWorld = texture(uTextures[7], objTexCoord); break;
-            }
-
-            currintensity *= vec3(texColorWorld);
-        }
-
+        vec3 currintensity = computeRecursiveLight(mat, rayOrigin, pWorld, normalWorld, closestIdx, pObj);
         intensity += currintensity * reflectedIntesity;
 
         // If recursing, multiply by OrKs
