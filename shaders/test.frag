@@ -560,18 +560,25 @@ bool isInShadow(vec3 p, vec3 lightDir, float maxDist) {
 
 vec3 computeRecursiveLight(Material mat, vec3 pEye, vec3 pWorld, vec3 normal) {
     
-    vec3 ambientColor    = mat.ambientColor.rgb; 
+    vec3 ambientColor    = mat.ambientColor.rgb;
     vec3 diffuseColor    = mat.diffuseColor.rgb;
     vec3 specularColor   = mat.specularColor.rgb;
     
 
     // Step 1: Ambient term (a) 
-    vec3 color = ambientColor * uGlobalKa; 
+    vec3 color = ambientColor * uGlobalKa;
 
     // Loop over each light
     for (int i = 0; i < uNumLights; i++){
         vec3 lightColor = uLightColor[i];
-        vec3 lightDir = normalize(uLightPos[i] - pWorld);
+
+        // Handle point light vs. directional light
+        vec3 lightDir = vec3(0.0);
+        if (uLightType[i] == 0) {
+            lightDir = normalize(uLightPos[i] - pWorld);
+        } else if (uLightType[i] == 1) {
+            lightDir = -uLightDir[i];
+        }
         float pointToLightDist = abs(length(uLightPos[i] - pWorld));
 
         // Step 2: Check if in shadow
@@ -579,7 +586,7 @@ vec3 computeRecursiveLight(Material mat, vec3 pEye, vec3 pWorld, vec3 normal) {
 
         // Step 3: Diffuse term (d)
         float NL = dot(normal, lightDir);
-        if (NL > EPSILON) color += lightColor * uGlobalKd * diffuseColor  * NL;
+        if (NL > EPSILON) color += lightColor * uGlobalKd * diffuseColor * NL;
 
         // Step 4: Specular term (s)
         vec3 reflectedRay = normalize((normal * 2.0 * dot(normal, lightDir)) - lightDir);
