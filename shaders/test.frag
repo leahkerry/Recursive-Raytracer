@@ -416,22 +416,22 @@ vec2 getTexCoordCube(vec3 hit, vec3 dominantFace, vec2 repeatUV) {
     float dfy = dominantFace.y;
     float dfz = dominantFace.z;
     
-    if (dfx > HALF) {
+    if (dfx > HALF) { // Right 
         u = -Pz;
-        v = Py;
-    } else if (dfx < -HALF){
+        v = -Py;
+    } else if (dfx < -HALF){ // Left
         u = Pz;
         v = Py;
-    } else if (dfy > HALF) {
+    } else if (dfy > HALF) { // Top
         u = Px;
         v = -Pz;
-    } else if (dfy < -HALF) {
-        u = Px;
+    } else if (dfy < -HALF) { // Bottom
+        u = -Px;
         v = Pz;
-    } else if (dfz > HALF) {
+    } else if (dfz > HALF) { // Front
         u = Px;
-        v = Py;
-    } else {
+        v = -Py;
+    } else { // Back
         u = -Px;
         v = Py;
     }
@@ -655,6 +655,7 @@ vec3 computeRecursiveLight(Material mat, vec3 pEye, vec3 pWorld, vec3 normal, in
 
         // Step 4: Specular term (s)
         vec3 reflectedRay = normalize((normal * 2.0 * dot(normal, lightDir)) - lightDir);
+        // vec3 reflectedRay = normalize(reflect(lightDir, normal));
         vec3 viewAngle = normalize(vec3(pEye - pWorld));
         color += lightColor * uGlobalKs * vec3(pow(abs(dot(viewAngle, reflectedRay)), mat.shininess) * specularColor);
         
@@ -723,16 +724,16 @@ vec3 traceRay(vec3 rayOrigin, vec3 rayDir) {
         intensity += currintensity * reflectedIntesity;
 
         // If recursing, multiply by OrKs
-        if (recdepth >= 1) {
+        if (recdepth >= 0) {
             vec3 reflectiveColor = mat.reflectiveColor.rgb;
             reflectedIntesity *= reflectiveColor * uGlobalKs;
         } 
 
         recdepth += 1;
         rayOrigin = pWorld;
-        // rayDir = normalize(rayDir - (2.0 * dot(rayDir, normalWorld) * normalWorld));
+        rayDir = normalize(rayDir - (2.0 * dot(rayDir, normalWorld) * normalWorld));
         // rayDir = normal;
-        rayDir = reflect(rayDir, normalWorld);
+        // rayDir = normalize(reflect(rayDir, normalWorld));
 
     } while ((recdepth < uMaxDepth) && (closestIdx != -1));
 
